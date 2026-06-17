@@ -670,6 +670,10 @@ select:focus {
   grid-column: 1;
 }
 
+.pc-cashier-shell .pay-dock .quick-cash {
+  grid-column: 1 / -1;
+}
+
 .pc-cashier-shell .pay-dock .cash-field.inactive {
   opacity: 0.45;
 }
@@ -791,6 +795,29 @@ select:focus {
 .pay-tabs button.active {
   background: linear-gradient(180deg, #17a673, var(--green));
   color: white;
+}
+
+.quick-cash {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.quick-cash button {
+  min-height: 38px;
+  border-radius: 8px;
+  background: #fff7dc;
+  color: #5c3d00;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.quick-cash button:first-child {
+  background: var(--sun);
+}
+
+.muted-cash {
+  min-height: 0;
 }
 
 .field {
@@ -1182,6 +1209,11 @@ select:focus {
     grid-column: 1;
   }
 
+  .pay-dock .quick-cash {
+    order: 5;
+    grid-column: 1 / -1;
+  }
+
   .pay-dock .cash-field input {
     min-height: 44px;
     padding: 8px 10px;
@@ -1190,12 +1222,22 @@ select:focus {
   }
 
   .pay-dock .pay-btn {
-    order: 5;
+    order: 6;
     grid-column: 2;
     align-self: end;
     min-height: 44px;
     font-size: 16px;
     background: linear-gradient(180deg, #19b37d, #0f7a57);
+  }
+
+  .quick-cash {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .quick-cash button {
+    min-height: 34px;
+    font-size: 12px;
   }
 
   .item-grid {

@@ -154,6 +154,25 @@ function changeDue() {
   return received - total;
 }
 
+function quickCashAmounts(total = cartTotal()) {
+  const base = Math.ceil(Number(total || 0));
+  if (base <= 0) return [];
+  const candidates = [
+    base,
+    Math.ceil(base / 50) * 50,
+    Math.ceil(base / 100) * 100,
+    200,
+    500,
+    1000
+  ].filter((value) => value >= base);
+  return [...new Set(candidates)].slice(0, 4);
+}
+
+function setCashReceived(value) {
+  state.cashReceived = String(value || '');
+  render();
+}
+
 function updateCashReceived(value) {
   state.cashReceived = value;
   updatePaymentPreview();
@@ -338,6 +357,9 @@ async function pay() {
     await loadRecentSales();
     if (state.user.role === 'admin') await loadAdmin();
     setMessage(`Zaplaceno ${money(data.sale.totalCzk)}.${change}`);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   } catch (e) {
     setMessage(e.message || String(e));
   }
@@ -447,6 +469,7 @@ function cashierView() {
   const total = cartTotal();
   const change = changeDue();
   const isPcCashier = isPcUser();
+  const quickCash = quickCashAmounts(total);
   const visibleCategories = isPcCashier ? categories.filter((category) => category === state.pcCategory) : categories;
   const productButtonHtml = (item) => `
     <button type="button" class="item-btn" onclick="pressItem(${item.id})">
@@ -546,6 +569,13 @@ function cashierView() {
               <span>${state.paymentMethod === 'cash' ? 'Přijato od zákazníka' : 'Přijato'}</span>
               <input inputmode="decimal" autocomplete="off" value="${escapeHtml(state.cashReceived)}" oninput="updateCashReceived(this.value)" placeholder="např. 200" ${state.paymentMethod === 'card' ? 'disabled' : ''} />
             </label>
+            ${state.paymentMethod === 'cash' ? `
+              <div class="quick-cash">
+                ${quickCash.map((amount, index) => `
+                  <button type="button" onclick="setCashReceived(${amount})">${index === 0 ? 'Přesně' : money(amount)}</button>
+                `).join('')}
+              </div>
+            ` : '<div class="quick-cash muted-cash"></div>'}
             <div id="changeBox" class="change-box ${change !== null && change < 0 ? 'bad' : ''} ${state.paymentMethod === 'card' ? 'card-mode' : ''}">
               <span>${state.paymentMethod === 'cash' ? 'Vrátit' : 'Platba'}</span>
               <strong id="changeValue">${state.paymentMethod === 'cash' ? (change === null ? '-' : money(Math.max(0, change))) : 'Karta'}</strong>
@@ -769,6 +799,7 @@ window.closeVariantPicker = closeVariantPicker;
 window.adjustVariantQty = adjustVariantQty;
 window.addVariantDraftToCart = addVariantDraftToCart;
 window.selectPcCategory = selectPcCategory;
+window.setCashReceived = setCashReceived;
 window.updateCashReceived = updateCashReceived;
 window.setQty = setQty;
 window.pay = pay;
