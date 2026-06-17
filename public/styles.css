@@ -659,6 +659,10 @@ select:focus {
   grid-column: 1;
 }
 
+.pc-cashier-shell .pay-dock .cash-field.inactive {
+  opacity: 0.45;
+}
+
 .pc-cashier-shell .pay-dock .cash-field input {
   min-height: 48px;
   font-size: 18px;
@@ -744,6 +748,11 @@ select:focus {
 .change-box.bad {
   background: var(--red-soft);
   color: var(--red);
+}
+
+.change-box.card-mode {
+  background: linear-gradient(180deg, #e6f2ff, #cfe4ff);
+  color: #123f7a;
 }
 
 .pay-tabs {

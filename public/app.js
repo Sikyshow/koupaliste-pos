@@ -140,7 +140,9 @@ function cartTotal() {
 }
 
 function changeDue() {
-  const received = Number(String(state.cashReceived || '').replace(',', '.'));
+  const raw = String(state.cashReceived || '').trim();
+  if (!raw) return null;
+  const received = Number(raw.replace(',', '.'));
   const total = cartTotal();
   if (!Number.isFinite(received)) return null;
   return received - total;
@@ -308,8 +310,9 @@ async function pay() {
   const items = cartItems();
   if (items.length === 0) return setMessage('Košík je prázdný.');
   const total = cartTotal();
-  const received = Number(String(state.cashReceived || '').replace(',', '.'));
-  if (state.paymentMethod === 'cash' && (!Number.isFinite(received) || received < total)) {
+  const rawReceived = String(state.cashReceived || '').trim();
+  const received = rawReceived ? Number(rawReceived.replace(',', '.')) : null;
+  if (state.paymentMethod === 'cash' && received !== null && (!Number.isFinite(received) || received < total)) {
     return setMessage('Zadej přijatou hotovost aspoň ve výši účtu.');
   }
   try {
@@ -525,16 +528,14 @@ function cashierView() {
               <button class="${state.paymentMethod === 'cash' ? 'active' : ''}" onclick="state.paymentMethod='cash'; render()">Hotově</button>
               <button class="${state.paymentMethod === 'card' ? 'active' : ''}" onclick="state.paymentMethod='card'; render()">Kartou</button>
             </div>
-            ${state.paymentMethod === 'cash' ? `
-              <label class="field cash-field">
-                <span>Přijato od zákazníka</span>
-                <input inputmode="decimal" autocomplete="off" value="${escapeHtml(state.cashReceived)}" oninput="updateCashReceived(this.value)" placeholder="např. 200" />
-              </label>
-              <div id="changeBox" class="change-box ${change !== null && change < 0 ? 'bad' : ''}">
-                <span>Vrátit</span>
-                <strong id="changeValue">${change === null ? '-' : money(Math.max(0, change))}</strong>
-              </div>
-            ` : '<div class="change-box"><span>Platba</span><strong>Karta</strong></div>'}
+            <label class="field cash-field ${state.paymentMethod === 'card' ? 'inactive' : ''}">
+              <span>${state.paymentMethod === 'cash' ? 'Přijato od zákazníka' : 'Přijato'}</span>
+              <input inputmode="decimal" autocomplete="off" value="${escapeHtml(state.cashReceived)}" oninput="updateCashReceived(this.value)" placeholder="např. 200" ${state.paymentMethod === 'card' ? 'disabled' : ''} />
+            </label>
+            <div id="changeBox" class="change-box ${change !== null && change < 0 ? 'bad' : ''} ${state.paymentMethod === 'card' ? 'card-mode' : ''}">
+              <span>${state.paymentMethod === 'cash' ? 'Vrátit' : 'Platba'}</span>
+              <strong id="changeValue">${state.paymentMethod === 'cash' ? (change === null ? '-' : money(Math.max(0, change))) : 'Karta'}</strong>
+            </div>
             <button class="pay-btn" onclick="pay()">Zaplatit</button>
           </div>
         </aside>
