@@ -483,6 +483,10 @@ async function buildSummary({ from, to }) {
     .filter((row) => String(row.payment_method) === 'card')
     .reduce((sum, row) => sum + Number(row.total_czk || 0), 0);
   const voided = voidedSales.reduce((sum, row) => sum + Number(row.total_czk || 0), 0);
+  const mappedSales = [];
+  for (const row of sales) {
+    mappedSales.push({ ...mapSale(row), items: await getSaleItems(row.id) });
+  }
 
   return {
     from,
@@ -504,7 +508,7 @@ async function buildSummary({ from, to }) {
       qty: Number(row.qty || 0),
       totalCzk: czk(row.total_czk)
     })),
-    sales: sales.map(mapSale)
+    sales: mappedSales
   };
 }
 

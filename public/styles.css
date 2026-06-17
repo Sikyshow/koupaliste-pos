@@ -788,6 +788,27 @@ select:focus {
   border-top: 4px solid #b9dcd8;
 }
 
+.side-history {
+  margin-top: 0;
+  padding: 10px;
+  border-top-width: 3px;
+  box-shadow: none;
+}
+
+.side-history .section-title {
+  margin-bottom: 8px;
+}
+
+.side-history .section-title h2 {
+  font-size: 16px;
+}
+
+.side-history .ghost-btn {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
 .sale-list {
   display: grid;
   gap: 8px;
@@ -801,6 +822,23 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfefd;
+}
+
+.side-history .sale-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 9px;
+}
+
+.side-history .sale-row strong {
+  font-size: 15px;
+}
+
+.side-history .sale-row span,
+.side-history .sale-row small,
+.side-history .sale-row em {
+  font-size: 12px;
 }
 
 .sale-row.voided {
@@ -867,6 +905,27 @@ select:focus {
 
 .kpi.danger strong {
   color: var(--red);
+}
+
+.void-panel {
+  margin-bottom: 14px;
+  border-top: 4px solid var(--red);
+}
+
+.void-panel .section-title span {
+  min-width: 38px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--red-soft);
+  color: var(--red);
+  text-align: center;
+  font-weight: 950;
+}
+
+.void-list {
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .admin-grid {

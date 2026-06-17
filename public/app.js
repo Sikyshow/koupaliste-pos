@@ -519,6 +519,7 @@ function cashierView() {
               </div>
             `).join('')}
           </div>
+          ${isPcCashier ? historyView(false, 'side') : ''}
           <div class="pay-dock">
             <div class="total-box">
               <span>Celkem</span>
@@ -541,7 +542,7 @@ function cashierView() {
         </aside>
       </section>
       ${variantPickerView()}
-      ${historyView(false)}
+      ${isPcCashier ? '' : historyView(false)}
     </main>
   `;
 }
@@ -595,16 +596,17 @@ function variantPickerView() {
   `;
 }
 
-function historyView(full) {
+function historyView(full, mode = '') {
+  const sales = full && state.adminSummary?.sales ? state.adminSummary.sales : state.recentSales;
   return `
-    <section class="history">
+    <section class="history ${mode === 'side' ? 'side-history' : ''}">
       <div class="section-title">
         <h2>${full ? 'Historie prodejů' : 'Poslední prodeje'}</h2>
-        <button class="ghost-btn" onclick="loadRecentSales().then(render)">Obnovit</button>
+        <button class="ghost-btn" onclick="${full ? 'loadAdmin().then(render)' : 'loadRecentSales().then(render)'}">Obnovit</button>
       </div>
       <div class="sale-list">
-        ${state.recentSales.length === 0 ? '<p class="empty">Zatím žádné prodeje.</p>' : ''}
-        ${state.recentSales.map((sale) => `
+        ${sales.length === 0 ? '<p class="empty">Zatím žádné prodeje.</p>' : ''}
+        ${sales.map((sale) => `
           <article class="sale-row ${sale.voided ? 'voided' : ''}">
             <div>
               <strong>#${sale.saleNo} ${money(sale.totalCzk)}</strong>
@@ -613,6 +615,33 @@ function historyView(full) {
               ${sale.voided ? `<em>Storno: ${escapeHtml(sale.voidedByName)} ${escapeHtml(sale.voidedAt)}</em>` : ''}
             </div>
             ${sale.voided ? '<b>STORNO</b>' : `<button class="danger-btn" onclick="voidSale(${sale.id})">Storno</button>`}
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function adminVoidsView() {
+  const voids = (state.adminSummary?.sales || []).filter((sale) => sale.voided);
+  return `
+    <section class="panel void-panel">
+      <div class="section-title">
+        <h2>Storna</h2>
+        <span>${voids.length}x</span>
+      </div>
+      <div class="sale-list void-list">
+        ${voids.length === 0 ? '<p class="empty">Pro vybraný den nejsou žádná storna.</p>' : ''}
+        ${voids.map((sale) => `
+          <article class="sale-row voided">
+            <div>
+              <strong>#${sale.saleNo} ${money(sale.totalCzk)}</strong>
+              <span>${escapeHtml(sale.cashierName)} • ${sale.paymentMethod === 'cash' ? 'hotově' : 'kartou'} • ${escapeHtml(sale.createdAt)}</span>
+              <small>${(sale.items || []).map((item) => `${escapeHtml(item.itemName)} ${item.qty}x`).join(', ')}</small>
+              <em>Storno: ${escapeHtml(sale.voidedByName)} ${escapeHtml(sale.voidedAt)}</em>
+              ${sale.voidReason ? `<small>Důvod: ${escapeHtml(sale.voidReason)}</small>` : ''}
+            </div>
+            <b>STORNO</b>
           </article>
         `).join('')}
       </div>
@@ -644,6 +673,7 @@ function adminView() {
         <div class="kpi"><span>Karta</span><strong>${money(s.cardCzk)}</strong></div>
         <div class="kpi danger"><span>Storna</span><strong>${money(s.voidedCzk)}</strong></div>
       </section>
+      ${adminVoidsView()}
       <section class="admin-grid">
         <div class="panel">
           <h2>Podle pokladní</h2>
