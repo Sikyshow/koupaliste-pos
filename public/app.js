@@ -3,6 +3,7 @@ const state = {
   pin: '',
   menu: [],
   cart: new Map(),
+  cartSeq: 0,
   paymentMethod: 'cash',
   cashReceived: '',
   recentSales: [],
@@ -137,7 +138,7 @@ function setMessage(message) {
 }
 
 function cartItems() {
-  return Array.from(state.cart.values());
+  return Array.from(state.cart.values()).sort((a, b) => Number(b.lastAdded || 0) - Number(a.lastAdded || 0));
 }
 
 function cartTotal() {
@@ -170,6 +171,7 @@ function updatePaymentPreview() {
 function addItem(item) {
   const current = state.cart.get(item.id) || { ...item, qty: 0 };
   current.qty += 1;
+  current.lastAdded = ++state.cartSeq;
   state.cart.set(item.id, current);
   render();
 }
@@ -238,7 +240,7 @@ function addVariantDraftToCart() {
     const item = state.menu.find((row) => Number(row.id) === id);
     if (!item) continue;
     const current = state.cart.get(id) || { ...item, qty: 0 };
-    state.cart.set(id, { ...current, qty: Number(current.qty || 0) + qty });
+    state.cart.set(id, { ...current, qty: Number(current.qty || 0) + qty, lastAdded: ++state.cartSeq });
   }
   closeVariantPicker();
 }
@@ -504,26 +506,31 @@ function cashierView() {
         </div>
 
         <aside class="cart-zone">
-          <div class="cart-head">
-            <h2>Účet</h2>
-            <button class="ghost-btn" onclick="state.cart.clear(); render()">Smazat</button>
-          </div>
-          <div class="cart-list">
-            ${cartItems().length === 0 ? '<p class="empty">Žádné položky.</p>' : ''}
-            ${cartItems().map((item) => `
-              <div class="cart-row">
-                <div>
-                  <strong>${escapeHtml(itemLabel(item))}</strong>
-                  <span>${money(item.priceCzk)} / ks</span>
-                </div>
-                <div class="qty">
-                  <button onclick="setQty(${item.id}, ${item.qty - 1})">-</button>
-                  <b>${item.qty}</b>
-                  <button onclick="setQty(${item.id}, ${item.qty + 1})">+</button>
-                </div>
-                <strong>${money(item.qty * item.priceCzk)}</strong>
+          <div class="cart-card">
+            <div class="cart-head">
+              <div>
+                <h2>Účet</h2>
+                <span>${cartItems().length} položek</span>
               </div>
-            `).join('')}
+              <button class="ghost-btn" onclick="state.cart.clear(); render()">Smazat</button>
+            </div>
+            <div class="cart-list">
+              ${cartItems().length === 0 ? '<p class="empty">Žádné položky.</p>' : ''}
+              ${cartItems().map((item) => `
+                <div class="cart-row">
+                  <div>
+                    <strong>${escapeHtml(itemLabel(item))}</strong>
+                    <span>${money(item.priceCzk)} / ks</span>
+                  </div>
+                  <strong>${money(item.qty * item.priceCzk)}</strong>
+                  <div class="qty">
+                    <button onclick="setQty(${item.id}, ${item.qty - 1})">-</button>
+                    <b>${item.qty}</b>
+                    <button onclick="setQty(${item.id}, ${item.qty + 1})">+</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
           </div>
           ${isPcCashier ? historyView(false, 'side') : ''}
           <div class="pay-dock">

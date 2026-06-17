@@ -496,7 +496,7 @@ select:focus {
 }
 
 .pc-cashier-shell .pos-grid {
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 420px;
   gap: 12px;
 }
 
@@ -619,7 +619,18 @@ select:focus {
   overflow: auto;
   padding-bottom: 208px;
   border-top: 0;
+  gap: 10px;
+  background: #f8fbfa;
   box-shadow: 0 16px 36px rgba(17, 55, 52, 0.10);
+}
+
+.cart-card {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #dce8e5;
+  border-radius: 8px;
+  background: white;
 }
 
 .pc-cashier-shell .pay-dock {
@@ -627,7 +638,7 @@ select:focus {
   z-index: 30;
   right: max(14px, calc((100vw - 1500px) / 2 + 14px));
   bottom: 0;
-  width: min(360px, calc(100vw - 28px));
+  width: min(420px, calc(100vw - 28px));
   padding: 10px 10px max(10px, env(safe-area-inset-bottom));
   border: 1px solid #d8e5e2;
   border-bottom: 0;
@@ -678,16 +689,24 @@ select:focus {
 .cart-list {
   display: grid;
   gap: 8px;
+  max-height: min(38vh, 360px);
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .cart-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfefd;
+}
+
+.cart-row > strong {
+  color: var(--green-dark);
+  font-size: 17px;
 }
 
 .cart-row span,
