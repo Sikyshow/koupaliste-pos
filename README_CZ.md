@@ -4,8 +4,9 @@ Samostatná mobilní webová pokladna pro stánek na koupališti.
 
 ## PINy
 
-- Pokladna 1: `1111`
-- Pokladna 2: `2222`
+- Zmrzlina: `1111`
+- Bouda: `3333`
+- Truck: `4444`
 - Admin: `9999`
 
 ## První menu

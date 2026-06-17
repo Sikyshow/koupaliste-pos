@@ -13,9 +13,9 @@ Pri prvnim spusteni se automaticky nainstaluji zavislosti a otevře se pokladna:
 
 ## PINy
 
-- Mobilni pokladna 1: `1111`
-- Mobilni pokladna 2: `2222`
-- PC pokladna: `3333`
+- Zmrzlina: `1111`
+- Bouda: `3333`
+- Truck: `4444`
 - Admin: `9999`
 
 ## Vypnuti

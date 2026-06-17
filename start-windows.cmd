@@ -29,9 +29,9 @@ start "" "http://localhost:5050"
 echo [3/3] Startuji Koupaliste POS...
 echo.
 echo PINy:
-echo - Mobilni pokladna 1: 1111
-echo - Mobilni pokladna 2: 2222
-echo - PC pokladna: 3333
+echo - Zmrzlina: 1111
+echo - Bouda: 3333
+echo - Truck: 4444
 echo - Admin: 9999
 echo.
 echo Pro vypnuti serveru zavri toto okno nebo stiskni Ctrl+C.

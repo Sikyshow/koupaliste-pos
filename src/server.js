@@ -47,7 +47,46 @@ function all(sql, params = []) {
 
 function normalizeRole(role) {
   const value = String(role || '').trim().toLowerCase();
-  return value === 'admin' ? 'admin' : 'cashier';
+  if (value === 'admin') return 'admin';
+  if (['zmrzlina', 'bouda', 'pc2'].includes(value)) return value;
+  return 'zmrzlina';
+}
+
+const MENU_SCOPES = [
+  { id: 'zmrzlina', label: 'Zmrzlina 1111' },
+  { id: 'bouda', label: 'Bouda 3333' },
+  { id: 'pc2', label: 'Truck 4444' }
+];
+
+function menuScopeIds(value) {
+  const raw = String(value || '').trim();
+  const normalized = raw
+    .replaceAll(';', ',')
+    .split(',')
+    .map((part) => part.trim().toLowerCase())
+    .map((part) => (part === 'mobile' ? 'zmrzlina' : part === 'pc' ? 'bouda' : part))
+    .filter((part) => MENU_SCOPES.some((scope) => scope.id === part));
+  return [...new Set(normalized.length ? normalized : ['zmrzlina'])];
+}
+
+function menuScopeValue(value) {
+  return menuScopeIds(value).join(',');
+}
+
+function menuScopeLabels(value) {
+  const ids = menuScopeIds(value);
+  return MENU_SCOPES.filter((scope) => ids.includes(scope.id)).map((scope) => scope.label);
+}
+
+function menuScopeForUser(user) {
+  const role = String(user?.role || '').trim().toLowerCase();
+  if (role === 'bouda' || role === 'pc_cashier') return 'bouda';
+  if (role === 'pc2') return 'pc2';
+  return 'zmrzlina';
+}
+
+function isPcRole(role) {
+  return ['bouda', 'pc2', 'pc_cashier'].includes(String(role || '').trim().toLowerCase());
 }
 
 function localDateKey(date = new Date()) {
@@ -94,7 +133,9 @@ function mapMenuItem(row) {
     category: String(row.category || 'Ostatní'),
     variant,
     pluCode,
-    menuScope: String(row.menu_scope || 'mobile'),
+    menuScope: menuScopeValue(row.menu_scope),
+    menuScopeIds: menuScopeIds(row.menu_scope),
+    menuScopeLabels: menuScopeLabels(row.menu_scope),
     priceCzk: czk(row.price_czk),
     active: Number(row.active || 0) === 1,
     sortOrder: Number(row.sort_order || 0)
@@ -273,7 +314,8 @@ async function initDb() {
   if (!menuCols.some((col) => col.name === 'menu_scope')) {
     await run(`ALTER TABLE menu_items ADD COLUMN menu_scope TEXT NOT NULL DEFAULT 'mobile'`);
   }
-  await run(`UPDATE menu_items SET menu_scope='mobile' WHERE trim(COALESCE(menu_scope, ''))=''`);
+  await run(`UPDATE menu_items SET menu_scope='zmrzlina' WHERE trim(COALESCE(menu_scope, ''))='' OR menu_scope='mobile'`);
+  await run(`UPDATE menu_items SET menu_scope='bouda' WHERE menu_scope='pc'`);
   await run(`CREATE INDEX IF NOT EXISTS idx_menu_items_scope ON menu_items(menu_scope, active, sort_order)`);
 
   const salesCols = await all(`PRAGMA table_info(sales)`);
@@ -284,9 +326,9 @@ async function initDb() {
   await run(`CREATE INDEX IF NOT EXISTS idx_sales_business_date ON sales(business_date)`);
 
   const users = [
-    ['cashier1', 'Pokladna 1', 'cashier', '1111'],
-    ['cashier2', 'Pokladna 2', 'cashier', '2222'],
-    ['pc_cashier', 'PC pokladna', 'pc_cashier', '3333'],
+    ['cashier1', 'Zmrzlina', 'zmrzlina', '1111'],
+    ['pc_cashier', 'Bouda', 'bouda', '3333'],
+    ['pc2', 'Truck', 'pc2', '4444'],
     ['admin', 'Admin', 'admin', '9999']
   ];
   for (const user of users) {
@@ -294,9 +336,15 @@ async function initDb() {
       `INSERT OR IGNORE INTO users(id, name, role, pin, active) VALUES (?, ?, ?, ?, 1)`,
       user
     );
+    await run(
+      `UPDATE users SET name=?, role=?, pin=?, active=1 WHERE id=?`,
+      [user[1], user[2], user[3], user[0]]
+    );
   }
 
-  const count = await get(`SELECT COUNT(*) AS c FROM menu_items WHERE menu_scope='mobile'`);
+  await run(`UPDATE users SET active=0 WHERE id='cashier2'`);
+
+  const count = await get(`SELECT COUNT(*) AS c FROM menu_items WHERE menu_scope LIKE '%zmrzlina%'`);
   if (Number(count?.c || 0) === 0) {
     const seed = [
       ['Kopeček zmrzliny', 'Zmrzlina', 35, 10],
@@ -306,7 +354,7 @@ async function initDb() {
     ];
     for (const row of seed) {
       await run(
-        `INSERT INTO menu_items(name, category, price_czk, active, sort_order, menu_scope) VALUES (?, ?, ?, 1, ?, 'mobile')`,
+        `INSERT INTO menu_items(name, category, price_czk, active, sort_order, menu_scope) VALUES (?, ?, ?, 1, ?, 'zmrzlina')`,
         row
       );
     }
@@ -377,7 +425,7 @@ async function initDb() {
     const [category, name, pluCode, variantName, priceCzk] = pcSeed[i];
     const exists = await get(
       `SELECT id FROM menu_items
-       WHERE menu_scope='pc' AND category=? AND name=? AND plu_code=? AND variant_name=?
+       WHERE menu_scope LIKE '%bouda%' AND category=? AND name=? AND plu_code=? AND variant_name=?
        LIMIT 1`,
       [category, name, pluCode, variantName]
     );
@@ -386,7 +434,7 @@ async function initDb() {
     await run(
       `INSERT INTO menu_items(
         name, category, variant_name, plu_code, menu_scope, price_czk, active, sort_order
-      ) VALUES (?, ?, ?, ?, 'pc', ?, 1, ?)`,
+      ) VALUES (?, ?, ?, ?, 'bouda', ?, 1, ?)`,
       [name, category, variantName, pluCode, czk(resolvedPrice ?? priceCzk), 1000 + i]
     );
   }
@@ -394,7 +442,7 @@ async function initDb() {
   const pcItemsForPriceUpdate = await all(
     `SELECT id, name, variant_name
      FROM menu_items
-     WHERE menu_scope='pc'`
+     WHERE menu_scope LIKE '%bouda%'`
   );
   for (const item of pcItemsForPriceUpdate) {
     const price = pcCatalogPrice(item.name, item.variant_name);
@@ -536,15 +584,18 @@ app.post('/api/login', async (req, res, next) => {
 
 app.get('/api/menu', requireUser, async (req, res, next) => {
   try {
-    const scope = req.user?.role === 'pc_cashier' ? 'pc' : 'mobile';
+    const scope = menuScopeForUser(req.user);
     const rows = await all(
       `SELECT id, name, category, variant_name, plu_code, menu_scope, price_czk, active, sort_order
        FROM menu_items
-       WHERE active=1 AND menu_scope=?
+       WHERE active=1
        ORDER BY sort_order, category, name`
-      , [scope]
     );
-    res.json({ items: rows.map(mapMenuItem) });
+    res.json({
+      scope,
+      scopes: MENU_SCOPES,
+      items: rows.filter((row) => menuScopeIds(row.menu_scope).includes(scope)).map(mapMenuItem)
+    });
   } catch (e) {
     next(e);
   }
@@ -558,6 +609,7 @@ app.post('/api/sales', requireUser, async (req, res, next) => {
       ? null
       : Number(req.body?.cashReceivedCzk);
     const cart = [];
+    const saleScope = menuScopeForUser(req.user);
 
     for (const raw of rawItems) {
       const id = Number(raw?.menuItemId || raw?.id || 0);
@@ -565,6 +617,9 @@ app.post('/api/sales', requireUser, async (req, res, next) => {
       if (!id || !qty) continue;
       const item = await get(`SELECT * FROM menu_items WHERE id=? AND active=1`, [id]);
       if (!item) return res.status(400).json({ error: 'Položka už není aktivní.' });
+      if (!menuScopeIds(item.menu_scope).includes(saleScope)) {
+        return res.status(400).json({ error: 'Položka není v této pokladně povolená.' });
+      }
       const unitPrice = czk(item.price_czk);
       cart.push({
         menuItemId: Number(item.id),
@@ -655,7 +710,7 @@ app.get('/api/admin/summary', requireUser, requireAdmin, async (req, res, next) 
 app.get('/api/admin/menu-items', requireUser, requireAdmin, async (_req, res, next) => {
   try {
     const rows = await all(`SELECT * FROM menu_items ORDER BY active DESC, sort_order, category, name`);
-    res.json({ items: rows.map(mapMenuItem) });
+    res.json({ scopes: MENU_SCOPES, items: rows.map(mapMenuItem) });
   } catch (e) {
     next(e);
   }
@@ -676,7 +731,7 @@ app.post('/api/admin/menu-items', requireUser, requireAdmin, async (req, res, ne
         category,
         String(req.body?.variant || req.body?.variantName || '').trim(),
         String(req.body?.pluCode || '').trim(),
-        String(req.body?.menuScope || 'mobile').trim() === 'pc' ? 'pc' : 'mobile',
+        menuScopeValue(req.body?.menuScopes || req.body?.menuScope || 'zmrzlina'),
         czk(price),
         Number(req.body?.sortOrder || 100)
       ]
@@ -697,7 +752,7 @@ app.put('/api/admin/menu-items/:id', requireUser, requireAdmin, async (req, res,
     const category = String(req.body?.category ?? current.category).trim() || 'Ostatní';
     const variantName = String(req.body?.variant ?? req.body?.variantName ?? current.variant_name ?? '').trim();
     const pluCode = String(req.body?.pluCode ?? current.plu_code ?? '').trim();
-    const menuScope = String(req.body?.menuScope ?? current.menu_scope ?? 'mobile').trim() === 'pc' ? 'pc' : 'mobile';
+    const menuScope = menuScopeValue(req.body?.menuScopes || req.body?.menuScope || current.menu_scope || 'zmrzlina');
     const price = Number(req.body?.priceCzk ?? current.price_czk);
     const active = req.body?.active === undefined ? Number(current.active || 0) : (req.body.active ? 1 : 0);
     if (!name) return res.status(400).json({ error: 'Chybí název.' });

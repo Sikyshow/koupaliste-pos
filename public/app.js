@@ -9,6 +9,7 @@ const state = {
   adminDate: new Date().toISOString().slice(0, 10),
   adminSummary: null,
   adminMenu: [],
+  adminScopes: [],
   pcCategory: '',
   variantPicker: null,
   variantDraft: {},
@@ -86,6 +87,10 @@ function groupVariantLabel(group) {
   const variants = (group?.items || []).map((item) => String(item.variant || '').trim()).filter(Boolean);
   if (variants.length <= 1) return group?.pluCode ? `#${group.pluCode}` : '';
   return `${variants.length} varianty`;
+}
+
+function isPcUser(user = state.user) {
+  return ['bouda', 'pc2', 'pc_cashier'].includes(String(user?.role || '').trim());
 }
 
 function escapeHtml(value) {
@@ -277,7 +282,7 @@ function logout() {
 async function loadMenu() {
   const data = await api('/api/menu');
   state.menu = data.items || [];
-  if (state.user?.role === 'pc_cashier') {
+  if (isPcUser()) {
     const categories = menuCategories();
     if (!state.pcCategory || !categories.includes(state.pcCategory)) {
       state.pcCategory = categories[0] || '';
@@ -304,6 +309,7 @@ async function loadAdmin() {
   const menu = await api('/api/admin/menu-items');
   state.adminSummary = data;
   state.adminMenu = menu.items || [];
+  state.adminScopes = menu.scopes || [];
 }
 
 async function pay() {
@@ -356,13 +362,13 @@ async function saveMenuItem(id) {
   const category = document.querySelector(`[data-menu-category="${id}"]`)?.value || '';
   const variant = document.querySelector(`[data-menu-variant="${id}"]`)?.value || '';
   const pluCode = document.querySelector(`[data-menu-code="${id}"]`)?.value || '';
-  const menuScope = document.querySelector(`[data-menu-scope="${id}"]`)?.value || 'mobile';
+  const menuScopes = Array.from(document.querySelectorAll(`[data-menu-scope="${id}"]:checked`)).map((input) => input.value);
   const priceCzk = document.querySelector(`[data-menu-price="${id}"]`)?.value || 0;
   const active = document.querySelector(`[data-menu-active="${id}"]`)?.checked || false;
   try {
     await api(`/api/admin/menu-items/${encodeURIComponent(id)}`, {
       method: 'PUT',
-      body: JSON.stringify({ name, category, variant, pluCode, menuScope, priceCzk, active })
+      body: JSON.stringify({ name, category, variant, pluCode, menuScopes, priceCzk, active })
     });
     await loadAdmin();
     setMessage('Položka uložena.');
@@ -383,7 +389,7 @@ async function addMenuItem(event) {
         category: data.get('category'),
         variant: data.get('variant'),
         pluCode: data.get('pluCode'),
-        menuScope: data.get('menuScope') || 'mobile',
+        menuScopes: data.getAll('menuScopes'),
         priceCzk: data.get('priceCzk')
       })
     });
@@ -424,9 +430,9 @@ function loginView() {
           <button type="submit">Přihlásit</button>
         </form>
         <div class="pin-hint">
-          <span>Pokladna 1: 1111</span>
-          <span>Pokladna 2: 2222</span>
-          <span>PC pokladna: 3333</span>
+          <span>Zmrzlina: 1111</span>
+          <span>Bouda: 3333</span>
+          <span>Truck: 4444</span>
           <span>Admin: 9999</span>
         </div>
       </section>
@@ -438,7 +444,7 @@ function cashierView() {
   const categories = menuCategories();
   const total = cartTotal();
   const change = changeDue();
-  const isPcCashier = state.user?.role === 'pc_cashier';
+  const isPcCashier = isPcUser();
   const visibleCategories = isPcCashier ? categories.filter((category) => category === state.pcCategory) : categories;
   const productButtonHtml = (item) => `
     <button type="button" class="item-btn" onclick="pressItem(${item.id})">
@@ -465,7 +471,7 @@ function cashierView() {
       <header class="topbar">
         <div>
           <p class="eyebrow">${escapeHtml(state.user.name)}</p>
-          <h1>${isPcCashier ? 'PC pokladna' : 'Pokladna'}</h1>
+          <h1>${isPcCashier ? state.user.name : 'Pokladna'}</h1>
         </div>
         <button class="icon-btn" onclick="logout()">Odhlásit</button>
       </header>
@@ -651,6 +657,21 @@ function adminVoidsView() {
 
 function adminView() {
   const s = state.adminSummary || {};
+  const scopes = state.adminScopes.length ? state.adminScopes : [
+    { id: 'zmrzlina', label: 'Zmrzlina 1111' },
+    { id: 'bouda', label: 'Bouda 3333' },
+    { id: 'pc2', label: 'Truck 4444' }
+  ];
+  const scopeCheckboxes = (name, selected = []) => `
+    <div class="scope-checks">
+      ${scopes.map((scope) => `
+        <label>
+          <input type="checkbox" name="${name}" value="${escapeHtml(scope.id)}" ${selected.includes(scope.id) ? 'checked' : ''} />
+          <span>${escapeHtml(scope.label)}</span>
+        </label>
+      `).join('')}
+    </div>
+  `;
   return `
     <main class="app-shell admin-shell">
       <header class="topbar">
@@ -695,10 +716,7 @@ function adminView() {
           <input name="category" placeholder="Kategorie" value="Jídlo" required />
           <input name="variant" placeholder="Varianta" />
           <input name="pluCode" placeholder="Kód" />
-          <select name="menuScope">
-            <option value="mobile">Mobil</option>
-            <option value="pc">PC</option>
-          </select>
+          ${scopeCheckboxes('menuScopes', ['zmrzlina'])}
           <input name="priceCzk" inputmode="decimal" placeholder="Cena" required />
           <button type="submit">Přidat</button>
         </form>
@@ -707,15 +725,12 @@ function adminView() {
             <div class="menu-edit-row">
               <div class="menu-edit-main">
                 <input data-menu-name="${item.id}" value="${escapeHtml(item.name)}" aria-label="Název" />
-                <small>${escapeHtml(item.menuScope === 'pc' ? 'PC pokladna' : 'Mobilní pokladna')}</small>
+                <small>${escapeHtml((item.menuScopeLabels || []).join(', '))}</small>
               </div>
               <input data-menu-category="${item.id}" value="${escapeHtml(item.category)}" aria-label="Kategorie" />
               <input data-menu-variant="${item.id}" value="${escapeHtml(item.variant || '')}" placeholder="Bez varianty" aria-label="Varianta" />
               <input data-menu-code="${item.id}" value="${escapeHtml(item.pluCode || '')}" placeholder="Kód" aria-label="Kód" />
-              <select data-menu-scope="${item.id}" aria-label="Katalog">
-                <option value="mobile" ${item.menuScope !== 'pc' ? 'selected' : ''}>Mobil</option>
-                <option value="pc" ${item.menuScope === 'pc' ? 'selected' : ''}>PC</option>
-              </select>
+              ${scopeCheckboxes(`scope-${item.id}`, item.menuScopeIds || []).replaceAll('name=', `data-menu-scope="${item.id}" name=`)}
               <input data-menu-price="${item.id}" inputmode="decimal" value="${item.priceCzk}" aria-label="Cena" />
               <label><input data-menu-active="${item.id}" type="checkbox" ${item.active ? 'checked' : ''}/> Aktivní</label>
               <button onclick="saveMenuItem(${item.id})">Uložit</button>

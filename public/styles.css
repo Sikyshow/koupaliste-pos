@@ -955,7 +955,7 @@ select:focus {
 
 .menu-edit-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1.4fr) minmax(110px, 0.8fr) minmax(110px, 0.8fr) 86px 92px 82px 92px 86px;
+  grid-template-columns: minmax(150px, 1.25fr) minmax(105px, 0.75fr) minmax(105px, 0.75fr) 82px minmax(210px, 1.25fr) 78px 88px 82px;
   gap: 8px;
   align-items: center;
   padding: 8px;
@@ -986,6 +986,27 @@ select:focus {
 .menu-edit-row input[type="checkbox"] {
   width: 20px;
   min-height: 20px;
+}
+
+.scope-checks {
+  display: grid;
+  gap: 5px;
+  min-width: 190px;
+}
+
+.scope-checks label {
+  min-height: 26px;
+  padding: 3px 6px;
+  border: 1px solid #d8e5e2;
+  border-radius: 8px;
+  background: #f8fbfa;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.scope-checks input {
+  width: 16px;
+  min-height: 16px;
 }
 
 @media (max-width: 820px) {
