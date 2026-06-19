@@ -12,6 +12,7 @@ const state = {
   adminMenu: [],
   adminScopes: [],
   adminClosures: [],
+  selectedClosure: null,
   pcCategory: '',
   showRecentSales: false,
   variantPicker: null,
@@ -453,6 +454,21 @@ async function closeDay() {
   }
 }
 
+async function openClosure(id) {
+  try {
+    const data = await api(`/api/admin/closures/${encodeURIComponent(id)}`);
+    state.selectedClosure = data.closure || null;
+    render();
+  } catch (e) {
+    setMessage(e.message || String(e));
+  }
+}
+
+function closeClosureDetail() {
+  state.selectedClosure = null;
+  render();
+}
+
 function loginView() {
   return `
     <main class="login-screen">
@@ -710,6 +726,8 @@ function adminVoidsView() {
 
 function adminClosuresView() {
   const closures = state.adminClosures || [];
+  const detail = state.selectedClosure;
+  const report = detail?.report || {};
   return `
     <section class="panel closures-panel">
       <div class="section-title">
@@ -729,9 +747,52 @@ function adminClosuresView() {
               <span>Karta ${money(closure.cardCzk)}</span>
               <span>Storna ${money(closure.voidedCzk)} (${closure.voidedCount}x)</span>
             </div>
+            <button class="ghost-btn" onclick="openClosure(${closure.id})">Detail</button>
           </article>
         `).join('')}
       </div>
+      ${detail ? `
+        <div class="closure-detail">
+          <div class="section-title">
+            <h3>Detail uzávěrky ${escapeHtml(detail.businessDate)} • ${money(detail.totalCzk)}</h3>
+            <button class="ghost-btn" onclick="closeClosureDetail()">Zavřít</button>
+          </div>
+          <section class="closure-kpis">
+            <div><span>Hotově</span><strong>${money(detail.cashCzk)}</strong></div>
+            <div><span>Karta</span><strong>${money(detail.cardCzk)}</strong></div>
+            <div><span>Prodeje</span><strong>${detail.salesCount}</strong></div>
+            <div><span>Storna</span><strong>${money(detail.voidedCzk)}</strong></div>
+          </section>
+          <div class="closure-columns">
+            <div>
+              <h4>Podle pokladní</h4>
+              ${(report.byCashier || []).map((row) => `
+                <div class="report-row"><span>${escapeHtml(row.cashierName)} (${row.salesCount}x)</span><strong>${money(row.totalCzk)}</strong></div>
+              `).join('') || '<p class="empty">Bez prodejů.</p>'}
+            </div>
+            <div>
+              <h4>Podle položek</h4>
+              ${(report.byItem || []).map((row) => `
+                <div class="report-row"><span>${escapeHtml(row.itemName)} (${row.qty}x)</span><strong>${money(row.totalCzk)}</strong></div>
+              `).join('') || '<p class="empty">Bez položek.</p>'}
+            </div>
+          </div>
+          <div class="closure-sales">
+            <h4>Jednotlivé prodeje</h4>
+            ${(report.sales || []).map((sale) => `
+              <article class="sale-row ${sale.voided ? 'voided' : ''}">
+                <div>
+                  <strong>#${sale.saleNo} ${money(sale.totalCzk)}</strong>
+                  <span>${escapeHtml(sale.cashierName)} • ${sale.paymentMethod === 'cash' ? 'hotově' : 'kartou'} • ${escapeHtml(sale.createdAt)}</span>
+                  <small>${(sale.items || []).map((item) => `${escapeHtml(item.itemName)} ${item.qty}x (${money(item.lineTotalCzk)})`).join(', ')}</small>
+                  ${sale.voided ? `<em>STORNO ${escapeHtml(sale.voidReason || '')}</em>` : ''}
+                </div>
+                <b>${sale.voided ? 'STORNO' : money(sale.totalCzk)}</b>
+              </article>
+            `).join('') || '<p class="empty">Bez prodejů.</p>'}
+          </div>
+        </div>
+      ` : ''}
     </section>
   `;
 }
@@ -855,6 +916,8 @@ window.loadAdmin = loadAdmin;
 window.saveMenuItem = saveMenuItem;
 window.addMenuItem = addMenuItem;
 window.closeDay = closeDay;
+window.openClosure = openClosure;
+window.closeClosureDetail = closeClosureDetail;
 window.state = state;
 window.render = render;
 
