@@ -1094,18 +1094,66 @@ select:focus {
   font-size: 20px;
 }
 
-.closure-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
 .closure-sales {
   display: grid;
   gap: 8px;
   max-height: 420px;
   overflow: auto;
   padding-right: 4px;
+}
+
+.closure-section {
+  display: grid;
+  gap: 8px;
+}
+
+.report-table {
+  display: grid;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.report-head,
+.report-line {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+  min-width: 760px;
+  padding: 9px 10px;
+  border-radius: 8px;
+}
+
+.report-head {
+  background: #102725;
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.report-line {
+  border: 1px solid var(--line);
+  background: #fbfefd;
+}
+
+.report-line span,
+.report-line strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cashier-report .report-head,
+.cashier-report .report-line {
+  grid-template-columns: minmax(150px, 1.3fr) repeat(5, minmax(92px, 0.8fr));
+}
+
+.item-report .report-head,
+.item-report .report-line {
+  grid-template-columns: minmax(280px, 1fr) 90px 120px;
+}
+
+.void-report .report-head,
+.void-report .report-line {
+  grid-template-columns: 80px 130px minmax(260px, 1fr) minmax(180px, 0.8fr) 110px;
 }
 
 .void-panel .section-title span {

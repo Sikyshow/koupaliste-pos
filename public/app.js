@@ -724,10 +724,58 @@ function adminVoidsView() {
   `;
 }
 
+function closureReportRows(report = {}) {
+  const sales = report.sales || [];
+  const cashierMap = new Map();
+  const itemMap = new Map();
+  const voids = [];
+
+  for (const sale of sales) {
+    const cashierName = String(sale.cashierName || 'Neznámá pokladna');
+    const cashier = cashierMap.get(cashierName) || {
+      cashierName,
+      salesCount: 0,
+      cashCzk: 0,
+      cardCzk: 0,
+      totalCzk: 0,
+      voidedCount: 0,
+      voidedCzk: 0
+    };
+
+    if (sale.voided) {
+      cashier.voidedCount += 1;
+      cashier.voidedCzk += Number(sale.totalCzk || 0);
+      voids.push(sale);
+    } else {
+      cashier.salesCount += 1;
+      cashier.totalCzk += Number(sale.totalCzk || 0);
+      if (sale.paymentMethod === 'card') cashier.cardCzk += Number(sale.totalCzk || 0);
+      else cashier.cashCzk += Number(sale.totalCzk || 0);
+
+      for (const item of sale.items || []) {
+        const key = item.itemName || 'Položka';
+        const row = itemMap.get(key) || { itemName: key, qty: 0, totalCzk: 0 };
+        row.qty += Number(item.qty || 0);
+        row.totalCzk += Number(item.lineTotalCzk || 0);
+        itemMap.set(key, row);
+      }
+    }
+
+    cashierMap.set(cashierName, cashier);
+  }
+
+  return {
+    cashiers: Array.from(cashierMap.values()).sort((a, b) => b.totalCzk - a.totalCzk),
+    items: Array.from(itemMap.values()).sort((a, b) => b.qty - a.qty || b.totalCzk - a.totalCzk),
+    voids
+  };
+}
+
 function adminClosuresView() {
   const closures = state.adminClosures || [];
   const detail = state.selectedClosure;
   const report = detail?.report || {};
+  const rows = closureReportRows(report);
   return `
     <section class="panel closures-panel">
       <div class="section-title">
@@ -763,20 +811,56 @@ function adminClosuresView() {
             <div><span>Prodeje</span><strong>${detail.salesCount}</strong></div>
             <div><span>Storna</span><strong>${money(detail.voidedCzk)}</strong></div>
           </section>
-          <div class="closure-columns">
-            <div>
-              <h4>Podle pokladní</h4>
-              ${(report.byCashier || []).map((row) => `
-                <div class="report-row"><span>${escapeHtml(row.cashierName)} (${row.salesCount}x)</span><strong>${money(row.totalCzk)}</strong></div>
+          <section class="closure-section">
+            <h4>Pokladny</h4>
+            <div class="report-table cashier-report">
+              <div class="report-head">
+                <span>Pokladna</span><span>Hotově</span><span>Karta</span><span>Celkem</span><span>Prodeje</span><span>Storna</span>
+              </div>
+              ${rows.cashiers.map((row) => `
+                <div class="report-line">
+                  <strong>${escapeHtml(row.cashierName)}</strong>
+                  <span>${money(row.cashCzk)}</span>
+                  <span>${money(row.cardCzk)}</span>
+                  <strong>${money(row.totalCzk)}</strong>
+                  <span>${row.salesCount}x</span>
+                  <span>${row.voidedCount}x / ${money(row.voidedCzk)}</span>
+                </div>
               `).join('') || '<p class="empty">Bez prodejů.</p>'}
             </div>
-            <div>
-              <h4>Podle položek</h4>
-              ${(report.byItem || []).map((row) => `
-                <div class="report-row"><span>${escapeHtml(row.itemName)} (${row.qty}x)</span><strong>${money(row.totalCzk)}</strong></div>
+          </section>
+          <section class="closure-section">
+            <h4>Prodáno podle položek</h4>
+            <div class="report-table item-report">
+              <div class="report-head">
+                <span>Položka</span><span>Ks</span><span>Celkem</span>
+              </div>
+              ${rows.items.map((row) => `
+                <div class="report-line">
+                  <strong>${escapeHtml(row.itemName)}</strong>
+                  <span>${row.qty}x</span>
+                  <strong>${money(row.totalCzk)}</strong>
+                </div>
               `).join('') || '<p class="empty">Bez položek.</p>'}
             </div>
-          </div>
+          </section>
+          <section class="closure-section">
+            <h4>Storna</h4>
+            <div class="report-table void-report">
+              <div class="report-head">
+                <span>Prodej</span><span>Pokladna</span><span>Položky</span><span>Důvod</span><span>Částka</span>
+              </div>
+              ${rows.voids.map((sale) => `
+                <div class="report-line">
+                  <strong>#${sale.saleNo}</strong>
+                  <span>${escapeHtml(sale.cashierName)}</span>
+                  <span>${(sale.items || []).map((item) => `${escapeHtml(item.itemName)} ${item.qty}x`).join(', ')}</span>
+                  <span>${escapeHtml(sale.voidReason || '-')}</span>
+                  <strong>${money(sale.totalCzk)}</strong>
+                </div>
+              `).join('') || '<p class="empty">Bez storen.</p>'}
+            </div>
+          </section>
           <div class="closure-sales">
             <h4>Jednotlivé prodeje</h4>
             ${(report.sales || []).map((sale) => `
