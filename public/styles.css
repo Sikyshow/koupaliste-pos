@@ -171,6 +171,17 @@ select:focus {
   gap: 12px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-toggle.active {
+  background: var(--green);
+  color: white;
+}
+
 .topbar {
   margin-bottom: 16px;
 }
@@ -318,7 +329,7 @@ select:focus {
 }
 
 .variant-modal {
-  width: min(620px, 100%);
+  width: min(720px, 100%);
   padding: 0;
   border: 1px solid #d8e5e2;
   border-radius: 8px;
@@ -354,8 +365,13 @@ select:focus {
   padding: 14px;
 }
 
+.pc-cashier-shell .variant-choice-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .variant-choice {
-  min-height: 74px;
+  min-height: 84px;
   padding: 12px;
   border-radius: 8px;
   background: #ffffff;
@@ -366,6 +382,12 @@ select:focus {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
+}
+
+.pc-cashier-shell .variant-choice {
+  grid-template-columns: 1fr;
+  align-content: space-between;
+  border-width: 2px;
 }
 
 .variant-choice.active {
@@ -423,6 +445,11 @@ select:focus {
   border-radius: 8px;
   overflow: hidden;
   background: white;
+}
+
+.pc-cashier-shell .variant-stepper {
+  width: 100%;
+  grid-template-columns: 54px 1fr 54px;
 }
 
 .variant-stepper button {
@@ -513,21 +540,26 @@ select:focus {
 }
 
 .pc-cashier-shell .item-grid {
-  grid-template-columns: repeat(auto-fill, minmax(142px, 1fr));
-  gap: 9px;
+  grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
+  gap: 10px;
 }
 
 .pc-cashier-shell .item-btn {
-  min-height: 94px;
-  padding: 11px;
-  background: #ffffff;
-  border-color: #d8e5e2;
-  box-shadow: 0 6px 14px rgba(17, 55, 52, 0.06);
+  min-height: 102px;
+  padding: 12px;
+  background: linear-gradient(180deg, #ffffff, #f8fbfa);
+  border: 2px solid #c7dcd8;
+  box-shadow: 0 8px 18px rgba(17, 55, 52, 0.08);
 }
 
 .pc-cashier-shell .item-btn::before {
-  width: 3px;
-  background: var(--aqua);
+  width: 4px;
+  background: linear-gradient(180deg, var(--aqua), var(--green));
+}
+
+.pc-cashier-shell .item-btn:focus-visible,
+.pc-cashier-shell .item-btn:hover {
+  border-color: rgba(18, 128, 92, 0.55);
 }
 
 .pc-cashier-shell .item-btn strong {
@@ -537,13 +569,25 @@ select:focus {
 
 .pc-cashier-shell .item-btn span {
   padding: 4px 8px;
-  background: #f1f6f4;
+  background: #e8f6ef;
   color: #0a5841;
   font-size: 17px;
 }
 
+.pc-cashier-shell .variant-group-btn {
+  border-color: #9bcfc7;
+  background: linear-gradient(180deg, #ffffff, #f1faf8);
+}
+
 .pc-cashier-shell .variant-group-btn small {
-  color: #60706e;
+  width: max-content;
+  max-width: 100%;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #eaf7fb;
+  color: #075263;
+  font-size: 11px;
+}
 }
 
 .pc-category-tabs {
@@ -617,7 +661,7 @@ select:focus {
   top: 92px;
   max-height: calc(100vh - 112px);
   overflow: auto;
-  padding-bottom: 208px;
+  padding-bottom: 218px;
   border-top: 0;
   gap: 10px;
   background: #f8fbfa;
@@ -693,7 +737,7 @@ select:focus {
 .cart-list {
   display: grid;
   gap: 8px;
-  max-height: min(38vh, 360px);
+  max-height: min(52vh, 520px);
   overflow: auto;
   padding-right: 2px;
 }
@@ -787,14 +831,28 @@ select:focus {
 .pay-tabs button {
   min-height: 48px;
   border-radius: 8px;
-  background: #edf7f5;
+  background: #eef4f3;
   color: var(--ink);
   font-weight: 900;
 }
 
 .pay-tabs button.active {
-  background: linear-gradient(180deg, #17a673, var(--green));
+  background: linear-gradient(180deg, #12805c, #0a5841);
   color: white;
+}
+
+.pay-tabs button:first-child.active {
+  background: linear-gradient(180deg, #19a873, #0d6f50);
+}
+
+.pay-tabs button:last-child.active {
+  background: linear-gradient(180deg, #2f7fe8, #1857b6);
+}
+
+.pc-cashier-shell .pay-dock .pay-btn {
+  background: linear-gradient(180deg, #ffcc5c, #f0a91f);
+  color: #2f2100;
+  box-shadow: 0 12px 24px rgba(240, 169, 31, 0.25);
 }
 
 .quick-cash {

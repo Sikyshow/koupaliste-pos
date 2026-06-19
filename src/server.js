@@ -301,6 +301,11 @@ async function initDb() {
     report_json TEXT NOT NULL,
     closed_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
   )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS app_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`);
   await run(`CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at)`);
   await run(`CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id)`);
 
@@ -324,6 +329,12 @@ async function initDb() {
     await run(`UPDATE sales SET business_date=substr(created_at, 1, 10) WHERE trim(COALESCE(business_date, ''))=''`);
   }
   await run(`CREATE INDEX IF NOT EXISTS idx_sales_business_date ON sales(business_date)`);
+
+  await run(
+    `INSERT OR IGNORE INTO app_state(key, value) VALUES ('shift_started_at', ?)`,
+    [`${localDateKey()} 00:00:00`]
+  );
+  await run(`INSERT OR IGNORE INTO app_state(key, value) VALUES ('shift_started_after_sale_id', '0')`);
 
   const users = [
     ['cashier1', 'Zmrzlina', 'zmrzlina', '1111'],
@@ -493,11 +504,40 @@ async function getSaleItems(saleId) {
   }));
 }
 
-async function buildSummary({ from, to }) {
-  const params = [from, to];
+async function getAppState(key, fallback = '') {
+  const row = await get(`SELECT value FROM app_state WHERE key=?`, [key]);
+  return row ? String(row.value || '') : fallback;
+}
+
+async function setAppState(key, value) {
+  await run(
+    `INSERT INTO app_state(key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+    [key, String(value || '')]
+  );
+}
+
+async function currentShiftStartedAt() {
+  return getAppState('shift_started_at', `${localDateKey()} 00:00:00`);
+}
+
+async function currentShiftAfterSaleId() {
+  return Number(await getAppState('shift_started_after_sale_id', '0')) || 0;
+}
+
+async function buildSummary({ from, to, since = '', afterSaleId = 0 }) {
+  const sinceClause = since ? ` AND datetime(created_at) >= datetime(?)` : '';
+  const idClause = afterSaleId ? ` AND id > ?` : '';
+  const itemIdClause = afterSaleId ? ` AND s.id > ?` : '';
+  const params = [
+    from,
+    to,
+    ...(since ? [since] : []),
+    ...(afterSaleId ? [afterSaleId] : [])
+  ];
   const sales = await all(
     `SELECT * FROM sales
-     WHERE business_date BETWEEN ? AND ?
+     WHERE business_date BETWEEN ? AND ?${sinceClause}${idClause}
      ORDER BY datetime(created_at) DESC, id DESC`,
     params
   );
@@ -507,7 +547,7 @@ async function buildSummary({ from, to }) {
   const byCashier = await all(
     `SELECT cashier_name, COUNT(*) AS sales_count, COALESCE(SUM(total_czk), 0) AS total_czk
      FROM sales
-     WHERE voided=0 AND business_date BETWEEN ? AND ?
+     WHERE voided=0 AND business_date BETWEEN ? AND ?${sinceClause}${idClause}
      GROUP BY cashier_name
      ORDER BY total_czk DESC`,
     params
@@ -517,7 +557,7 @@ async function buildSummary({ from, to }) {
     `SELECT si.item_name, si.category, COALESCE(SUM(si.qty), 0) AS qty, COALESCE(SUM(si.line_total_czk), 0) AS total_czk
      FROM sale_items si
      JOIN sales s ON s.id=si.sale_id
-     WHERE s.voided=0 AND s.business_date BETWEEN ? AND ?
+     WHERE s.voided=0 AND s.business_date BETWEEN ? AND ?${since ? ` AND datetime(s.created_at) >= datetime(?)` : ''}${itemIdClause}
      GROUP BY si.item_name, si.category
      ORDER BY qty DESC, total_czk DESC`,
     params
@@ -539,6 +579,8 @@ async function buildSummary({ from, to }) {
   return {
     from,
     to,
+    since,
+    afterSaleId,
     totalCzk: czk(total),
     cashCzk: czk(cash),
     cardCzk: czk(card),
@@ -569,6 +611,17 @@ app.use(express.static(path.join(rootDir, 'public')));
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, app: 'koupaliste-pos', dbPath });
+});
+
+app.get('/api/shift', requireUser, async (_req, res, next) => {
+  try {
+    res.json({
+      shiftStartedAt: await currentShiftStartedAt(),
+      shiftStartedAfterSaleId: await currentShiftAfterSaleId()
+    });
+  } catch (e) {
+    next(e);
+  }
 });
 
 app.post('/api/login', async (req, res, next) => {
@@ -669,10 +722,18 @@ app.post('/api/sales', requireUser, async (req, res, next) => {
 
 app.get('/api/sales/recent', requireUser, async (_req, res, next) => {
   try {
-    const rows = await all(`SELECT * FROM sales ORDER BY datetime(created_at) DESC, id DESC LIMIT 30`);
+    const shiftStartedAt = await currentShiftStartedAt();
+    const afterSaleId = await currentShiftAfterSaleId();
+    const rows = await all(
+      `SELECT * FROM sales
+       WHERE id > ?
+       ORDER BY datetime(created_at) DESC, id DESC
+       LIMIT 30`,
+      [afterSaleId]
+    );
     const sales = [];
     for (const row of rows) sales.push({ ...mapSale(row), items: await getSaleItems(row.id) });
-    res.json({ sales });
+    res.json({ shiftStartedAt, shiftStartedAfterSaleId: afterSaleId, sales });
   } catch (e) {
     next(e);
   }
@@ -701,7 +762,15 @@ app.get('/api/admin/summary', requireUser, requireAdmin, async (req, res, next) 
   try {
     const from = parseDateKey(req.query?.from);
     const to = parseDateKey(req.query?.to || req.query?.from, from);
-    res.json(await buildSummary({ from, to }));
+    const shiftStartedAt = await currentShiftStartedAt();
+    const afterSaleId = await currentShiftAfterSaleId();
+    const useCurrentShift = from === localDateKey() && to === localDateKey();
+    res.json(await buildSummary({
+      from,
+      to,
+      since: useCurrentShift ? shiftStartedAt : '',
+      afterSaleId: useCurrentShift ? afterSaleId : 0
+    }));
   } catch (e) {
     next(e);
   }
@@ -773,7 +842,16 @@ app.put('/api/admin/menu-items/:id', requireUser, requireAdmin, async (req, res,
 app.post('/api/admin/close-day', requireUser, requireAdmin, async (req, res, next) => {
   try {
     const date = parseDateKey(req.body?.date);
-    const summary = await buildSummary({ from: date, to: date });
+    const shiftStartedAt = await currentShiftStartedAt();
+    const afterSaleId = await currentShiftAfterSaleId();
+    const useCurrentShift = date === localDateKey();
+    const summary = await buildSummary({
+      from: date,
+      to: date,
+      since: useCurrentShift ? shiftStartedAt : '',
+      afterSaleId: useCurrentShift ? afterSaleId : 0
+    });
+    const closedAt = localDateTimeSql();
     const result = await run(
       `INSERT INTO day_closures(
         business_date, closed_by_id, closed_by_name, total_czk, cash_czk, card_czk,
@@ -792,7 +870,12 @@ app.post('/api/admin/close-day', requireUser, requireAdmin, async (req, res, nex
         JSON.stringify(summary)
       ]
     );
-    res.json({ closureId: result.id, summary });
+    if (useCurrentShift) {
+      const maxSale = await get(`SELECT COALESCE(MAX(id), 0) AS max_id FROM sales`);
+      await setAppState('shift_started_at', closedAt);
+      await setAppState('shift_started_after_sale_id', Number(maxSale?.max_id || 0));
+    }
+    res.json({ closureId: result.id, closedAt, shiftStartedAt: useCurrentShift ? closedAt : shiftStartedAt, summary });
   } catch (e) {
     next(e);
   }

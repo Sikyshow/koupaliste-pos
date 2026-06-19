@@ -12,6 +12,7 @@ const state = {
   adminMenu: [],
   adminScopes: [],
   pcCategory: '',
+  showRecentSales: false,
   variantPicker: null,
   variantDraft: {},
   message: ''
@@ -320,6 +321,11 @@ function selectPcCategory(category) {
   render();
 }
 
+function toggleRecentSales() {
+  state.showRecentSales = !state.showRecentSales;
+  render();
+}
+
 async function loadRecentSales() {
   const data = await api('/api/sales/recent');
   state.recentSales = data.sales || [];
@@ -433,8 +439,11 @@ async function closeDay() {
       method: 'POST',
       body: JSON.stringify({ date: state.adminDate })
     });
+    state.cart.clear();
+    state.cashReceived = '';
+    state.recentSales = [];
     await loadAdmin();
-    setMessage('Denní uzávěrka uložena.');
+    setMessage('Směna uzavřena. Nová směna začíná od nuly.');
   } catch (e) {
     setMessage(e.message || String(e));
   }
@@ -498,7 +507,10 @@ function cashierView() {
           <p class="eyebrow">${escapeHtml(state.user.name)}</p>
           <h1>${isPcCashier ? state.user.name : 'Pokladna'}</h1>
         </div>
-        <button class="icon-btn" onclick="logout()">Odhlásit</button>
+        <div class="topbar-actions">
+          ${isPcCashier ? `<button class="icon-btn history-toggle ${state.showRecentSales ? 'active' : ''}" onclick="toggleRecentSales()">Prodeje</button>` : ''}
+          <button class="icon-btn" onclick="logout()">Odhlásit</button>
+        </div>
       </header>
 
       <section class="pos-grid">
@@ -555,7 +567,7 @@ function cashierView() {
               `).join('')}
             </div>
           </div>
-          ${isPcCashier ? historyView(false, 'side') : ''}
+          ${isPcCashier && state.showRecentSales ? historyView(false, 'side') : ''}
           <div class="pay-dock">
             <div class="total-box">
               <span>Celkem</span>
@@ -799,6 +811,7 @@ window.closeVariantPicker = closeVariantPicker;
 window.adjustVariantQty = adjustVariantQty;
 window.addVariantDraftToCart = addVariantDraftToCart;
 window.selectPcCategory = selectPcCategory;
+window.toggleRecentSales = toggleRecentSales;
 window.setCashReceived = setCashReceived;
 window.updateCashReceived = updateCashReceived;
 window.setQty = setQty;
