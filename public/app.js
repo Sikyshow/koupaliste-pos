@@ -13,6 +13,8 @@ const state = {
   adminScopes: [],
   adminClosures: [],
   selectedClosure: null,
+  adminTab: 'overview',
+  adminClosureMonth: '',
   pcCategory: '',
   showRecentSales: false,
   variantPicker: null,
@@ -32,6 +34,22 @@ document.addEventListener(
 
 function money(value) {
   return `${Number(value || 0).toFixed(0)} Kč`;
+}
+
+function czDate(value) {
+  const parts = String(value || '').slice(0, 10).split('-').map(Number);
+  if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) return String(value || '');
+  return `${parts[2]}.${parts[1]}.${parts[0]}`;
+}
+
+function monthKey(value) {
+  return String(value || '').slice(0, 7);
+}
+
+function monthLabel(key) {
+  const [year, month] = String(key || '').split('-').map(Number);
+  if (!year || !month) return String(key || '');
+  return `${month}.${year}`;
 }
 
 function itemLabel(item) {
@@ -416,24 +434,114 @@ async function addMenuItem(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const data = new FormData(form);
+  const selectedCategory = String(data.get('category') || '');
+  const newCategory = String(data.get('newCategory') || '').trim();
+  const category = selectedCategory === '__new__' ? newCategory : selectedCategory;
+  const variantMode = data.get('variantMode') === 'variants';
+  const variantRows = variantMode ? Array.from(form.querySelectorAll('.variant-price-row'))
+    .map((row) => ({
+      variant: row.querySelector('[name="variantName"]')?.value.trim() || '',
+      priceCzk: row.querySelector('[name="variantPrice"]')?.value.trim() || ''
+    }))
+    .filter((row) => row.variant || row.priceCzk) : [];
+  const basePriceCzk = String(data.get('priceCzk') || '').trim();
+  const rows = variantMode ? variantRows : [{ variant: '', priceCzk: basePriceCzk }];
+  if (!category) {
+    setMessage('Vyber nebo napiš kategorii.');
+    return;
+  }
+  if (!variantMode && !basePriceCzk) {
+    setMessage('Vyplň cenu.');
+    return;
+  }
+  if (variantMode && (!rows.length || rows.some((row) => !row.priceCzk || !row.variant))) {
+    setMessage('U každého druhu vyplň název i cenu.');
+    return;
+  }
   try {
-    await api('/api/admin/menu-items', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: data.get('name'),
-        category: data.get('category'),
-        variant: data.get('variant'),
-        pluCode: data.get('pluCode'),
-        menuScopes: data.getAll('menuScopes'),
-        priceCzk: data.get('priceCzk')
+    await Promise.all(
+      rows.map((row) => api('/api/admin/menu-items', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: data.get('name'),
+          category,
+          variant: row.variant,
+          pluCode: data.get('pluCode') || '',
+          menuScopes: data.getAll('menuScopes'),
+          priceCzk: row.priceCzk
+        })
       })
-    });
+    ));
     form.reset();
     await loadMenu();
     await loadAdmin();
-    setMessage('Položka přidána.');
+    setMessage(rows.length > 1 ? `Přidáno ${rows.length} variant.` : 'Položka přidána.');
   } catch (e) {
     setMessage(e.message || String(e));
+  }
+}
+
+function setMenuAddMode(button, mode) {
+  const form = button.closest('form');
+  if (!form) return;
+  const isVariantMode = mode === 'variants';
+  form.querySelector('[name="variantMode"]').value = isVariantMode ? 'variants' : 'single';
+  form.querySelector('.base-price-field')?.classList.toggle('is-hidden', isVariantMode);
+  form.querySelector('.variant-prices')?.classList.toggle('is-hidden', !isVariantMode);
+  form.querySelectorAll('.mode-btn').forEach((modeButton) => {
+    modeButton.classList.toggle('active', modeButton === button);
+  });
+  const priceInput = form.querySelector('[name="priceCzk"]');
+  if (priceInput) priceInput.required = !isVariantMode;
+}
+
+function addVariantPriceRow(button) {
+  const list = button.closest('.variant-prices')?.querySelector('.variant-price-list');
+  if (!list) return;
+  list.insertAdjacentHTML('beforeend', variantPriceRowTemplate());
+}
+
+function removeVariantPriceRow(button) {
+  const row = button.closest('.variant-price-row');
+  const list = button.closest('.variant-price-list');
+  if (!row || !list) return;
+  if (list.querySelectorAll('.variant-price-row').length === 1) {
+    row.querySelectorAll('input').forEach((input) => { input.value = ''; });
+    return;
+  }
+  row.remove();
+}
+
+function variantPriceRowTemplate() {
+  return `
+    <div class="variant-price-row">
+      <input name="variantName" placeholder="Druh: Malý" />
+      <input name="variantPrice" inputmode="decimal" placeholder="Cena" />
+      <button type="button" class="ghost-btn remove-variant-btn" onclick="removeVariantPriceRow(this)" aria-label="Odebrat druh">-</button>
+    </div>
+  `;
+}
+
+function setAdminTab(tab) {
+  state.adminTab = tab;
+  render();
+}
+
+function setClosureMonth(month) {
+  state.adminClosureMonth = month;
+  state.selectedClosure = null;
+  render();
+}
+
+function toggleNewCategoryField(select) {
+  const form = select.closest('form');
+  const field = form?.querySelector('.new-category-field');
+  const input = field?.querySelector('input');
+  const isNew = select.value === '__new__';
+  field?.classList.toggle('is-hidden', !isNew);
+  if (input) {
+    input.required = isNew;
+    if (isNew) input.focus();
   }
 }
 
@@ -490,18 +598,12 @@ function loginView() {
         <div>
           <p class="eyebrow">Koupaliště</p>
           <h1>Mobilní pokladna</h1>
-          <p class="muted">Zadej PIN pokladní nebo admina.</p>
+          <p class="muted">Zadej svůj PIN.</p>
         </div>
         <form class="pin-form" onsubmit="event.preventDefault(); login(this.pin.value);">
           <input name="pin" inputmode="numeric" autocomplete="off" placeholder="PIN" autofocus />
           <button type="submit">Přihlásit</button>
         </form>
-        <div class="pin-hint">
-          <span>Zmrzlina: 1111</span>
-          <span>Bouda: 3333</span>
-          <span>Truck: 4444</span>
-          <span>Admin: 9999</span>
-        </div>
       </section>
     </main>
   `;
@@ -787,6 +889,21 @@ function closureReportRows(report = {}) {
 
 function adminClosuresView() {
   const closures = state.adminClosures || [];
+  const months = [...new Set(closures.map((closure) => monthKey(closure.businessDate)).filter(Boolean))]
+    .sort((a, b) => b.localeCompare(a));
+  if (!state.adminClosureMonth || !months.includes(state.adminClosureMonth)) {
+    state.adminClosureMonth = months[0] || '';
+  }
+  const selectedMonth = state.adminClosureMonth;
+  const monthClosures = closures.filter((closure) => monthKey(closure.businessDate) === selectedMonth);
+  const monthSummary = monthClosures.reduce((sum, closure) => ({
+    totalCzk: sum.totalCzk + Number(closure.totalCzk || 0),
+    cashCzk: sum.cashCzk + Number(closure.cashCzk || 0),
+    cardCzk: sum.cardCzk + Number(closure.cardCzk || 0),
+    voidedCzk: sum.voidedCzk + Number(closure.voidedCzk || 0),
+    salesCount: sum.salesCount + Number(closure.salesCount || 0),
+    voidedCount: sum.voidedCount + Number(closure.voidedCount || 0)
+  }), { totalCzk: 0, cashCzk: 0, cardCzk: 0, voidedCzk: 0, salesCount: 0, voidedCount: 0 });
   const detail = state.selectedClosure;
   const report = detail?.report || {};
   const rows = closureReportRows(report);
@@ -796,12 +913,30 @@ function adminClosuresView() {
         <h2>Uzávěrky směn</h2>
         <button class="ghost-btn" onclick="loadAdmin().then(render)">Obnovit</button>
       </div>
+      ${months.length ? `
+        <div class="closure-month-tabs">
+          ${months.map((month) => `
+            <button class="closure-month-tab ${month === selectedMonth ? 'active' : ''}" onclick="setClosureMonth('${escapeHtml(month)}')">
+              <strong>${escapeHtml(monthLabel(month))}</strong>
+              <span>${closures.filter((closure) => monthKey(closure.businessDate) === month).length} uzávěrek</span>
+            </button>
+          `).join('')}
+        </div>
+        <section class="closure-month-summary">
+          <div><span>Měsíc</span><strong>${escapeHtml(monthLabel(selectedMonth))}</strong></div>
+          <div><span>Celkem</span><strong>${money(monthSummary.totalCzk)}</strong></div>
+          <div><span>Hotově</span><strong>${money(monthSummary.cashCzk)}</strong></div>
+          <div><span>Karta</span><strong>${money(monthSummary.cardCzk)}</strong></div>
+          <div><span>Prodeje</span><strong>${monthSummary.salesCount}x</strong></div>
+          <div><span>Storna</span><strong>${money(monthSummary.voidedCzk)} / ${monthSummary.voidedCount}x</strong></div>
+        </section>
+      ` : ''}
       <div class="closure-list">
         ${closures.length === 0 ? '<p class="empty">Zatím nejsou uložené žádné uzávěrky.</p>' : ''}
-        ${closures.map((closure) => `
+        ${monthClosures.map((closure) => `
           <article class="closure-row">
             <div>
-              <strong>${escapeHtml(closure.businessDate)} • ${money(closure.totalCzk)}</strong>
+              <strong>${escapeHtml(czDate(closure.businessDate))} • ${money(closure.totalCzk)}</strong>
               <span>${escapeHtml(closure.closedAt)} • ${escapeHtml(closure.closedByName)} • ${closure.salesCount} prodejů</span>
             </div>
             <div class="closure-money">
@@ -815,11 +950,12 @@ function adminClosuresView() {
             </div>
           </article>
         `).join('')}
+        ${closures.length && monthClosures.length === 0 ? '<p class="empty">V tomto měsíci nejsou žádné uzávěrky.</p>' : ''}
       </div>
       ${detail ? `
         <div class="closure-detail">
           <div class="section-title">
-            <h3>Detail uzávěrky ${escapeHtml(detail.businessDate)} • ${money(detail.totalCzk)}</h3>
+            <h3>Detail uzávěrky ${escapeHtml(czDate(detail.businessDate))} • ${money(detail.totalCzk)}</h3>
             <button class="ghost-btn" onclick="closeClosureDetail()">Zavřít</button>
           </div>
           <section class="closure-kpis">
@@ -900,6 +1036,8 @@ function adminClosuresView() {
 
 function adminView() {
   const s = state.adminSummary || {};
+  const categories = [...new Set(state.adminMenu.map((item) => item.category).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'cs'));
   const scopes = state.adminScopes.length ? state.adminScopes : [
     { id: 'zmrzlina', label: 'Zmrzlina 1111' },
     { id: 'bouda', label: 'Bouda 3333' },
@@ -915,74 +1053,167 @@ function adminView() {
       `).join('')}
     </div>
   `;
+  const activeMenuCount = state.adminMenu.filter((item) => item.active).length;
+  const hiddenMenuCount = state.adminMenu.length - activeMenuCount;
+  const voids = (s.sales || []).filter((sale) => sale.voided);
+  const tab = state.adminTab || 'overview';
+  const adminTabs = [
+    { id: 'overview', label: 'Přehled', meta: money(s.totalCzk) },
+    { id: 'closures', label: 'Uzávěrky', meta: `${state.adminClosures.length}x` },
+    { id: 'voids', label: 'Storna', meta: `${voids.length}x` },
+    { id: 'items', label: 'Položky', meta: `${activeMenuCount} aktivních` },
+    { id: 'sales', label: 'Prodeje', meta: `${(s.sales || []).length}x` }
+  ];
+  const overviewContent = `
+    <section class="admin-grid">
+      <div class="panel admin-panel-card">
+        <h2>Podle pokladní</h2>
+        ${(s.byCashier || []).map((row) => `
+          <div class="report-row"><span>${escapeHtml(row.cashierName)} (${row.salesCount}x)</span><strong>${money(row.totalCzk)}</strong></div>
+        `).join('') || '<p class="empty">Bez prodejů.</p>'}
+      </div>
+      <div class="panel admin-panel-card">
+        <h2>Nejprodávanější položky</h2>
+        ${(s.byItem || []).slice(0, 12).map((row) => `
+          <div class="report-row"><span>${escapeHtml(row.itemName)} (${row.qty}x)</span><strong>${money(row.totalCzk)}</strong></div>
+        `).join('') || '<p class="empty">Bez prodejů.</p>'}
+      </div>
+    </section>
+  `;
+  const itemsContent = `
+    <section class="panel admin-panel-card items-admin-panel">
+      <div class="section-title">
+        <div>
+          <h2>Správa položek</h2>
+          <p class="muted">Přidání, ceny, kategorie a pokladny.</p>
+        </div>
+        <strong class="admin-pill">${state.adminMenu.length} položek</strong>
+      </div>
+      <form class="add-form quick-add-form" onsubmit="addMenuItem(event)">
+        <label class="field">
+          <span>Kam přidat</span>
+          <select name="category" onchange="toggleNewCategoryField(this)" required>
+            ${categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join('')}
+            <option value="__new__">+ Nová kategorie</option>
+          </select>
+        </label>
+        <label class="field new-category-field ${categories.length ? 'is-hidden' : ''}">
+          <span>Nová kategorie</span>
+          <input name="newCategory" placeholder="Např. Sladkosti" ${categories.length ? '' : 'required'} />
+        </label>
+        <label class="field">
+          <span>Název</span>
+          <input name="name" placeholder="Např. Jupík" required />
+        </label>
+        <div class="field price-mode-field">
+          <span>Typ ceny</span>
+          <input type="hidden" name="variantMode" value="single" />
+          <div class="mode-switch">
+            <button type="button" class="mode-btn active" onclick="setMenuAddMode(this, 'single')">Jedna cena</button>
+            <button type="button" class="mode-btn" onclick="setMenuAddMode(this, 'variants')">Více druhů</button>
+          </div>
+        </div>
+        <label class="field base-price-field">
+          <span>Cena bez druhu</span>
+          <input name="priceCzk" inputmode="decimal" placeholder="Např. 25" required />
+        </label>
+        <div class="variant-prices is-hidden">
+          <div class="section-title">
+            <span class="field-title">Druhy s vlastní cenou</span>
+            <button type="button" class="ghost-btn" onclick="addVariantPriceRow(this)">Přidat druh</button>
+          </div>
+          <div class="variant-price-list">
+            ${variantPriceRowTemplate()}
+          </div>
+        </div>
+        <div class="quick-add-scope">
+          <span class="field-title">Pokladna</span>
+          ${scopeCheckboxes('menuScopes', ['zmrzlina'])}
+        </div>
+        <button type="submit">Přidat položku</button>
+      </form>
+      <div class="menu-edit-list">
+        ${categories.map((category) => {
+          const items = state.adminMenu.filter((item) => item.category === category);
+          return `
+            <details class="menu-category-edit">
+              <summary>
+                <strong>${escapeHtml(category)}</strong>
+                <span>${items.length} položek</span>
+              </summary>
+              <div class="menu-category-items">
+                ${items.map((item) => `
+                  <div class="menu-edit-row">
+                    <div class="menu-edit-main">
+                      <input data-menu-name="${item.id}" value="${escapeHtml(item.name)}" aria-label="Název" />
+                      <small>${escapeHtml((item.menuScopeLabels || []).join(', '))}</small>
+                    </div>
+                    <input data-menu-category="${item.id}" value="${escapeHtml(item.category)}" aria-label="Kategorie" />
+                    <input data-menu-variant="${item.id}" value="${escapeHtml(item.variant || '')}" placeholder="Bez varianty" aria-label="Varianta" />
+                    <input data-menu-code="${item.id}" value="${escapeHtml(item.pluCode || '')}" placeholder="Kód" aria-label="Kód" />
+                    ${scopeCheckboxes(`scope-${item.id}`, item.menuScopeIds || []).replaceAll('name=', `data-menu-scope="${item.id}" name=`)}
+                    <input data-menu-price="${item.id}" inputmode="decimal" value="${item.priceCzk}" aria-label="Cena" />
+                    <label><input data-menu-active="${item.id}" type="checkbox" ${item.active ? 'checked' : ''}/> Aktivní</label>
+                    <button onclick="saveMenuItem(${item.id})">Uložit</button>
+                  </div>
+                `).join('')}
+              </div>
+            </details>
+          `;
+        }).join('') || '<p class="empty">Zatím nejsou žádné položky.</p>'}
+      </div>
+    </section>
+  `;
+  const tabContent = tab === 'closures'
+    ? adminClosuresView()
+    : tab === 'voids'
+      ? adminVoidsView()
+      : tab === 'items'
+        ? itemsContent
+        : tab === 'sales'
+          ? historyView(true)
+          : overviewContent;
   return `
     <main class="app-shell admin-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">Admin</p>
-          <h1>Přehled</h1>
+      <section class="admin-hero-card">
+        <div class="admin-hero-top">
+          <div>
+            <p class="eyebrow">Hlavní administrace</p>
+            <h1>${tab === 'items' ? 'Správa položek' : tab === 'closures' ? 'Uzávěrky' : tab === 'voids' ? 'Storna' : tab === 'sales' ? 'Prodeje' : 'Denní přehled'}</h1>
+            <p class="muted">Tržby, pokladny, položky a uzávěrky na jednom místě.</p>
+          </div>
+          <div class="admin-hero-total">
+            <span>Dnes</span>
+            <strong>${money(s.totalCzk)}</strong>
+            <small>${s.salesCount || 0} prodejů</small>
+          </div>
         </div>
-        <button class="icon-btn" onclick="logout()">Odhlásit</button>
-      </header>
-      <section class="admin-tools">
-        <label class="field">
-          <span>Datum</span>
-          <input type="date" value="${state.adminDate}" onchange="state.adminDate=this.value; loadAdmin().then(render)" />
-        </label>
-        <button class="pay-btn compact" onclick="closeDay()">Uzavřít den</button>
-      </section>
-      <section class="kpi-grid">
-        <div class="kpi"><span>Tržba</span><strong>${money(s.totalCzk)}</strong></div>
-        <div class="kpi"><span>Hotově</span><strong>${money(s.cashCzk)}</strong></div>
-        <div class="kpi"><span>Karta</span><strong>${money(s.cardCzk)}</strong></div>
-        <div class="kpi danger"><span>Storna</span><strong>${money(s.voidedCzk)}</strong></div>
-      </section>
-      ${adminClosuresView()}
-      ${adminVoidsView()}
-      <section class="admin-grid">
-        <div class="panel">
-          <h2>Podle pokladní</h2>
-          ${(s.byCashier || []).map((row) => `
-            <div class="report-row"><span>${escapeHtml(row.cashierName)} (${row.salesCount}x)</span><strong>${money(row.totalCzk)}</strong></div>
-          `).join('') || '<p class="empty">Bez prodejů.</p>'}
+        <div class="admin-hero-actions">
+          <label class="field">
+            <span>Datum</span>
+            <input type="date" value="${state.adminDate}" onchange="state.adminDate=this.value; loadAdmin().then(render)" />
+          </label>
+          <button class="pay-btn compact" onclick="closeDay()">Uzavřít den</button>
+          <button class="icon-btn" onclick="logout()">Odhlásit</button>
         </div>
-        <div class="panel">
-          <h2>Podle položek</h2>
-          ${(s.byItem || []).map((row) => `
-            <div class="report-row"><span>${escapeHtml(row.itemName)} (${row.qty}x)</span><strong>${money(row.totalCzk)}</strong></div>
-          `).join('') || '<p class="empty">Bez prodejů.</p>'}
-        </div>
+        <section class="kpi-grid admin-kpi-row">
+          <div class="kpi"><span>Hotově</span><strong>${money(s.cashCzk)}</strong></div>
+          <div class="kpi"><span>Karta</span><strong>${money(s.cardCzk)}</strong></div>
+          <div class="kpi"><span>Aktivní položky</span><strong>${activeMenuCount}</strong></div>
+          <div class="kpi danger"><span>Storna</span><strong>${money(s.voidedCzk)}</strong></div>
+        </section>
       </section>
-      <section class="panel">
-        <h2>Menu a ceny</h2>
-        <form class="add-form" onsubmit="addMenuItem(event)">
-          <input name="name" placeholder="Název" required />
-          <input name="category" placeholder="Kategorie" value="Jídlo" required />
-          <input name="variant" placeholder="Varianta" />
-          <input name="pluCode" placeholder="Kód" />
-          ${scopeCheckboxes('menuScopes', ['zmrzlina'])}
-          <input name="priceCzk" inputmode="decimal" placeholder="Cena" required />
-          <button type="submit">Přidat</button>
-        </form>
-        <div class="menu-edit-list">
-          ${state.adminMenu.map((item) => `
-            <div class="menu-edit-row">
-              <div class="menu-edit-main">
-                <input data-menu-name="${item.id}" value="${escapeHtml(item.name)}" aria-label="Název" />
-                <small>${escapeHtml((item.menuScopeLabels || []).join(', '))}</small>
-              </div>
-              <input data-menu-category="${item.id}" value="${escapeHtml(item.category)}" aria-label="Kategorie" />
-              <input data-menu-variant="${item.id}" value="${escapeHtml(item.variant || '')}" placeholder="Bez varianty" aria-label="Varianta" />
-              <input data-menu-code="${item.id}" value="${escapeHtml(item.pluCode || '')}" placeholder="Kód" aria-label="Kód" />
-              ${scopeCheckboxes(`scope-${item.id}`, item.menuScopeIds || []).replaceAll('name=', `data-menu-scope="${item.id}" name=`)}
-              <input data-menu-price="${item.id}" inputmode="decimal" value="${item.priceCzk}" aria-label="Cena" />
-              <label><input data-menu-active="${item.id}" type="checkbox" ${item.active ? 'checked' : ''}/> Aktivní</label>
-              <button onclick="saveMenuItem(${item.id})">Uložit</button>
-            </div>
-          `).join('')}
-        </div>
+      <nav class="admin-tabs-row" aria-label="Admin záložky">
+        ${adminTabs.map((item) => `
+          <button class="admin-tab-btn ${tab === item.id ? 'active' : ''}" onclick="setAdminTab('${item.id}')">
+            <strong>${escapeHtml(item.label)}</strong>
+            <span>${escapeHtml(item.meta)}</span>
+          </button>
+        `).join('')}
+      </nav>
+      <section class="admin-tab-content">
+        ${tabContent}
       </section>
-      ${historyView(true)}
     </main>
   `;
 }
@@ -1016,6 +1247,12 @@ window.loadRecentSales = loadRecentSales;
 window.loadAdmin = loadAdmin;
 window.saveMenuItem = saveMenuItem;
 window.addMenuItem = addMenuItem;
+window.setAdminTab = setAdminTab;
+window.setClosureMonth = setClosureMonth;
+window.setMenuAddMode = setMenuAddMode;
+window.addVariantPriceRow = addVariantPriceRow;
+window.removeVariantPriceRow = removeVariantPriceRow;
+window.toggleNewCategoryField = toggleNewCategoryField;
 window.closeDay = closeDay;
 window.openClosure = openClosure;
 window.closeClosureDetail = closeClosureDetail;
