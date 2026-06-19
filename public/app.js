@@ -11,6 +11,7 @@ const state = {
   adminSummary: null,
   adminMenu: [],
   adminScopes: [],
+  adminClosures: [],
   pcCategory: '',
   showRecentSales: false,
   variantPicker: null,
@@ -298,6 +299,7 @@ function logout() {
   state.cart.clear();
   state.recentSales = [];
   state.adminSummary = null;
+  state.adminClosures = [];
   render();
 }
 
@@ -334,9 +336,11 @@ async function loadRecentSales() {
 async function loadAdmin() {
   const data = await api(`/api/admin/summary?from=${encodeURIComponent(state.adminDate)}&to=${encodeURIComponent(state.adminDate)}`);
   const menu = await api('/api/admin/menu-items');
+  const closures = await api('/api/admin/closures');
   state.adminSummary = data;
   state.adminMenu = menu.items || [];
   state.adminScopes = menu.scopes || [];
+  state.adminClosures = closures.closures || [];
 }
 
 async function pay() {
@@ -704,6 +708,34 @@ function adminVoidsView() {
   `;
 }
 
+function adminClosuresView() {
+  const closures = state.adminClosures || [];
+  return `
+    <section class="panel closures-panel">
+      <div class="section-title">
+        <h2>Uzávěrky směn</h2>
+        <button class="ghost-btn" onclick="loadAdmin().then(render)">Obnovit</button>
+      </div>
+      <div class="closure-list">
+        ${closures.length === 0 ? '<p class="empty">Zatím nejsou uložené žádné uzávěrky.</p>' : ''}
+        ${closures.map((closure) => `
+          <article class="closure-row">
+            <div>
+              <strong>${escapeHtml(closure.businessDate)} • ${money(closure.totalCzk)}</strong>
+              <span>${escapeHtml(closure.closedAt)} • ${escapeHtml(closure.closedByName)} • ${closure.salesCount} prodejů</span>
+            </div>
+            <div class="closure-money">
+              <span>Hotově ${money(closure.cashCzk)}</span>
+              <span>Karta ${money(closure.cardCzk)}</span>
+              <span>Storna ${money(closure.voidedCzk)} (${closure.voidedCount}x)</span>
+            </div>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
 function adminView() {
   const s = state.adminSummary || {};
   const scopes = state.adminScopes.length ? state.adminScopes : [
@@ -743,6 +775,7 @@ function adminView() {
         <div class="kpi"><span>Karta</span><strong>${money(s.cardCzk)}</strong></div>
         <div class="kpi danger"><span>Storna</span><strong>${money(s.voidedCzk)}</strong></div>
       </section>
+      ${adminClosuresView()}
       ${adminVoidsView()}
       <section class="admin-grid">
         <div class="panel">

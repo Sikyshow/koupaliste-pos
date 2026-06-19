@@ -1016,6 +1016,43 @@ select:focus {
   border-top: 4px solid var(--red);
 }
 
+.closures-panel {
+  margin-bottom: 14px;
+  border-top: 4px solid var(--green);
+}
+
+.closure-list {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.closure-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, auto);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfefd;
+}
+
+.closure-row span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.closure-money {
+  display: grid;
+  gap: 3px;
+  text-align: right;
+}
+
 .void-panel .section-title span {
   min-width: 38px;
   padding: 4px 10px;

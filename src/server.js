@@ -785,6 +785,34 @@ app.get('/api/admin/menu-items', requireUser, requireAdmin, async (_req, res, ne
   }
 });
 
+app.get('/api/admin/closures', requireUser, requireAdmin, async (_req, res, next) => {
+  try {
+    const rows = await all(
+      `SELECT id, business_date, closed_by_name, total_czk, cash_czk, card_czk,
+              voided_czk, sales_count, voided_count, closed_at
+       FROM day_closures
+       ORDER BY datetime(closed_at) DESC, id DESC
+       LIMIT 80`
+    );
+    res.json({
+      closures: rows.map((row) => ({
+        id: Number(row.id),
+        businessDate: String(row.business_date || ''),
+        closedByName: String(row.closed_by_name || ''),
+        totalCzk: czk(row.total_czk),
+        cashCzk: czk(row.cash_czk),
+        cardCzk: czk(row.card_czk),
+        voidedCzk: czk(row.voided_czk),
+        salesCount: Number(row.sales_count || 0),
+        voidedCount: Number(row.voided_count || 0),
+        closedAt: String(row.closed_at || '')
+      }))
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 app.post('/api/admin/menu-items', requireUser, requireAdmin, async (req, res, next) => {
   try {
     const name = String(req.body?.name || '').trim();
