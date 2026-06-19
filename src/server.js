@@ -844,6 +844,18 @@ app.get('/api/admin/closures/:id', requireUser, requireAdmin, async (req, res, n
   }
 });
 
+app.delete('/api/admin/closures/:id', requireUser, requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id || 0);
+    const existing = await get(`SELECT id FROM day_closures WHERE id=?`, [id]);
+    if (!existing) return res.status(404).json({ error: 'Uzávěrka nenalezena.' });
+    await run(`DELETE FROM day_closures WHERE id=?`, [id]);
+    res.json({ ok: true, id });
+  } catch (e) {
+    next(e);
+  }
+});
+
 app.post('/api/admin/menu-items', requireUser, requireAdmin, async (req, res, next) => {
   try {
     const name = String(req.body?.name || '').trim();

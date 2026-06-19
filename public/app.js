@@ -469,6 +469,20 @@ function closeClosureDetail() {
   render();
 }
 
+async function deleteClosure(id) {
+  if (!confirm('Smazat tuto uzávěrku? Prodeje zůstanou uložené, smaže se jen záznam uzávěrky.')) return;
+  try {
+    await api(`/api/admin/closures/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (Number(state.selectedClosure?.id || 0) === Number(id)) {
+      state.selectedClosure = null;
+    }
+    await loadAdmin();
+    setMessage('Uzávěrka smazána.');
+  } catch (e) {
+    setMessage(e.message || String(e));
+  }
+}
+
 function loginView() {
   return `
     <main class="login-screen">
@@ -795,7 +809,10 @@ function adminClosuresView() {
               <span>Karta ${money(closure.cardCzk)}</span>
               <span>Storna ${money(closure.voidedCzk)} (${closure.voidedCount}x)</span>
             </div>
-            <button class="ghost-btn" onclick="openClosure(${closure.id})">Detail</button>
+            <div class="closure-actions">
+              <button class="ghost-btn" onclick="openClosure(${closure.id})">Detail</button>
+              <button class="danger-btn compact-danger" onclick="deleteClosure(${closure.id})">Smazat</button>
+            </div>
           </article>
         `).join('')}
       </div>
@@ -1002,6 +1019,7 @@ window.addMenuItem = addMenuItem;
 window.closeDay = closeDay;
 window.openClosure = openClosure;
 window.closeClosureDetail = closeClosureDetail;
+window.deleteClosure = deleteClosure;
 window.state = state;
 window.render = render;
 

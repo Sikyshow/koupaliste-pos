@@ -1053,6 +1053,17 @@ select:focus {
   text-align: right;
 }
 
+.closure-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.compact-danger {
+  min-height: 42px;
+  padding: 0 12px;
+}
+
 .closure-detail {
   display: grid;
   gap: 12px;
