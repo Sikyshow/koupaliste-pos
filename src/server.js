@@ -450,21 +450,6 @@ async function initDb() {
     );
   }
 
-  const pcItemsForPriceUpdate = await all(
-    `SELECT id, name, variant_name
-     FROM menu_items
-     WHERE menu_scope LIKE '%bouda%'`
-  );
-  for (const item of pcItemsForPriceUpdate) {
-    const price = pcCatalogPrice(item.name, item.variant_name);
-    if (price === null) continue;
-    await run(
-      `UPDATE menu_items
-       SET price_czk=?, updated_at=datetime('now')
-       WHERE id=?`,
-      [czk(price), Number(item.id)]
-    );
-  }
 }
 
 async function requireUser(req, res, next) {
