@@ -2,15 +2,18 @@ const state = {
   user: null,
   pin: '',
   menu: [],
+  categoryOrder: [],
   cart: new Map(),
   cartSeq: 0,
   paymentMethod: 'cash',
   cashReceived: '',
+  chargeTotal: '',
   recentSales: [],
   adminDate: new Date().toISOString().slice(0, 10),
   adminSummary: null,
   adminMenu: [],
   adminScopes: [],
+  adminCategoryOrder: [],
   adminClosures: [],
   selectedClosure: null,
   adminTab: 'overview',
@@ -56,13 +59,6 @@ function itemLabel(item) {
   return String(item?.displayName || item?.name || '');
 }
 
-function itemMeta(item) {
-  const parts = [];
-  if (item?.variant) parts.push(String(item.variant));
-  if (item?.pluCode) parts.push(`#${item.pluCode}`);
-  return parts.join(' • ');
-}
-
 function groupKeyForItem(item) {
   return [item?.category || '', item?.name || '', item?.pluCode || ''].join('||');
 }
@@ -102,13 +98,7 @@ function groupPriceLabel(group) {
   const prices = [...new Set((group?.items || []).map((item) => Number(item.priceCzk || 0)))].sort((a, b) => a - b);
   if (prices.length === 0) return money(0);
   if (prices.length === 1) return money(prices[0]);
-  return `${money(prices[0])}-${money(prices[prices.length - 1])}`;
-}
-
-function groupVariantLabel(group) {
-  const variants = (group?.items || []).map((item) => String(item.variant || '').trim()).filter(Boolean);
-  if (variants.length <= 1) return group?.pluCode ? `#${group.pluCode}` : '';
-  return `${variants.length} varianty`;
+  return `od ${money(prices[0])}`;
 }
 
 function isPcUser(user = state.user) {
@@ -170,14 +160,52 @@ function changeDue() {
   const raw = String(state.cashReceived || '').trim();
   if (!raw) return null;
   const received = Number(raw.replace(',', '.'));
-  const total = cartTotal();
+  const total = chargedTotal();
   if (!Number.isFinite(received)) return null;
   return received - total;
+}
+
+function chargedTotal() {
+  const raw = String(state.chargeTotal || '').trim();
+  if (!raw) return cartTotal();
+  const amount = Number(raw.replace(',', '.'));
+  return Number.isFinite(amount) ? amount : NaN;
+}
+
+function surchargeDue() {
+  const charged = chargedTotal();
+  if (!Number.isFinite(charged)) return null;
+  return czkClient(charged - cartTotal());
+}
+
+function czkClient(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
 }
 
 function quickCashAmounts(total = cartTotal()) {
   const base = Math.ceil(Number(total || 0));
   if (base <= 0) return [];
+  const roundTo10 = Math.ceil(base / 10) * 10;
+  const roundTo50 = Math.ceil(base / 50) * 50;
+  const candidates = [
+    base,
+    base + 5,
+    base + 10,
+    base + 15,
+    base + 20,
+    roundTo10,
+    roundTo50,
+    Math.ceil(base / 100) * 100,
+    200,
+    500,
+    1000
+  ].filter((value) => value >= base);
+  return [...new Set(candidates)].sort((a, b) => a - b).slice(0, 6);
+}
+
+function quickReceivedAmounts(total = chargedTotal()) {
+  const base = Math.ceil(Number(total || 0));
+  if (base <= 0 || !Number.isFinite(base)) return [];
   const candidates = [
     base,
     Math.ceil(base / 50) * 50,
@@ -186,11 +214,16 @@ function quickCashAmounts(total = cartTotal()) {
     500,
     1000
   ].filter((value) => value >= base);
-  return [...new Set(candidates)].slice(0, 4);
+  return [...new Set(candidates)].sort((a, b) => a - b).slice(0, 4);
 }
 
 function setCashReceived(value) {
   state.cashReceived = String(value || '');
+  render();
+}
+
+function setChargeTotal(value) {
+  state.chargeTotal = String(value || '');
   render();
 }
 
@@ -199,10 +232,18 @@ function updateCashReceived(value) {
   updatePaymentPreview();
 }
 
+function updateChargeTotal(value) {
+  state.chargeTotal = value;
+  updatePaymentPreview();
+}
+
 function updatePaymentPreview() {
+  const surcharge = surchargeDue();
   const change = changeDue();
+  const surchargeValue = document.getElementById('surchargeValue');
   const changeBox = document.getElementById('changeBox');
   const changeValue = document.getElementById('changeValue');
+  if (surchargeValue) surchargeValue.textContent = surcharge === null ? '-' : money(Math.max(0, surcharge));
   if (!changeBox || !changeValue) return;
   changeBox.classList.toggle('bad', change !== null && change < 0);
   changeValue.textContent = change === null ? '-' : money(Math.max(0, change));
@@ -325,6 +366,7 @@ function logout() {
 async function loadMenu() {
   const data = await api('/api/menu');
   state.menu = data.items || [];
+  state.categoryOrder = data.categoryOrder || [];
   if (isPcUser()) {
     const categories = menuCategories();
     if (!state.pcCategory || !categories.includes(state.pcCategory)) {
@@ -334,12 +376,32 @@ async function loadMenu() {
 }
 
 function menuCategories() {
-  return [...new Set(state.menu.map((item) => item.category))];
+  return orderCategories([...new Set(state.menu.map((item) => item.category))], state.categoryOrder);
 }
 
 function selectPcCategory(category) {
   state.pcCategory = String(category || '');
   render();
+}
+
+function orderCategories(categories, order = []) {
+  const rank = new Map((order || []).map((category, index) => [String(category), index]));
+  return [...categories].sort((a, b) => {
+    const ai = rank.has(String(a)) ? rank.get(String(a)) : Number.MAX_SAFE_INTEGER;
+    const bi = rank.has(String(b)) ? rank.get(String(b)) : Number.MAX_SAFE_INTEGER;
+    if (ai !== bi) return ai - bi;
+    return String(a).localeCompare(String(b), 'cs');
+  });
+}
+
+function moveBefore(list, dragged, target) {
+  const current = [...list];
+  const from = current.indexOf(dragged);
+  const to = current.indexOf(target);
+  if (from < 0 || to < 0 || from === to) return current;
+  current.splice(from, 1);
+  current.splice(current.indexOf(target), 0, dragged);
+  return current;
 }
 
 function toggleRecentSales() {
@@ -359,6 +421,7 @@ async function loadAdmin() {
   state.adminSummary = data;
   state.adminMenu = menu.items || [];
   state.adminScopes = menu.scopes || [];
+  state.adminCategoryOrder = menu.categoryOrder || [];
   state.adminClosures = closures.closures || [];
 }
 
@@ -366,16 +429,22 @@ async function pay() {
   const items = cartItems();
   if (items.length === 0) return setMessage('Košík je prázdný.');
   const total = cartTotal();
+  const rawChargeTotal = String(state.chargeTotal || '').trim();
+  const chargeTotal = rawChargeTotal ? Number(rawChargeTotal.replace(',', '.')) : total;
   const rawReceived = String(state.cashReceived || '').trim();
-  const received = rawReceived ? Number(rawReceived.replace(',', '.')) : null;
-  if (state.paymentMethod === 'cash' && received !== null && (!Number.isFinite(received) || received < total)) {
-    return setMessage('Zadej přijatou hotovost aspoň ve výši účtu.');
+  const received = rawReceived ? Number(rawReceived.replace(',', '.')) : chargeTotal;
+  if (!Number.isFinite(chargeTotal) || chargeTotal < total) {
+    return setMessage('Účtovaná cena musí být aspoň ve výši účtu.');
+  }
+  if (state.paymentMethod === 'cash' && (!Number.isFinite(received) || received < chargeTotal)) {
+    return setMessage('Přijatá hotovost musí být aspoň ve výši účtované ceny.');
   }
   try {
     const data = await api('/api/sales', {
       method: 'POST',
       body: JSON.stringify({
         paymentMethod: state.paymentMethod,
+        chargedTotalCzk: chargeTotal,
         cashReceivedCzk: state.paymentMethod === 'cash' ? received : null,
         items: items.map((item) => ({ menuItemId: item.id, qty: item.qty }))
       })
@@ -383,6 +452,7 @@ async function pay() {
     const change = data.sale.changeCzk === null || data.sale.changeCzk === undefined ? '' : ` Vrátit: ${money(data.sale.changeCzk)}.`;
     state.cart.clear();
     state.cashReceived = '';
+    state.chargeTotal = '';
     await loadRecentSales();
     if (state.user.role === 'admin') await loadAdmin();
     setMessage(`Zaplaceno ${money(data.sale.totalCzk)}.${change}`);
@@ -425,6 +495,63 @@ async function saveMenuItem(id) {
     });
     await loadAdmin();
     setMessage('Položka uložena.');
+  } catch (e) {
+    setMessage(e.message || String(e));
+  }
+}
+
+function dragCategory(event, category) {
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', String(category));
+  state.dragCategory = String(category);
+}
+
+async function dropCategory(event, targetCategory) {
+  event.preventDefault();
+  const dragged = state.dragCategory || event.dataTransfer.getData('text/plain');
+  state.dragCategory = '';
+  if (!dragged || dragged === targetCategory) return;
+  const categories = orderCategories([...new Set(state.adminMenu.map((item) => item.category).filter(Boolean))], state.adminCategoryOrder);
+  const nextOrder = moveBefore(categories, dragged, targetCategory);
+  state.adminCategoryOrder = nextOrder;
+  render();
+  try {
+    await api('/api/admin/menu-categories/order', {
+      method: 'POST',
+      body: JSON.stringify({ categories: nextOrder })
+    });
+    await loadMenu();
+    await loadAdmin();
+    render();
+  } catch (e) {
+    setMessage(e.message || String(e));
+  }
+}
+
+function dragMenuItem(event, id) {
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', String(id));
+  state.dragMenuItemId = Number(id);
+}
+
+async function dropMenuItem(event, category, targetId) {
+  event.preventDefault();
+  const draggedId = Number(state.dragMenuItemId || event.dataTransfer.getData('text/plain'));
+  state.dragMenuItemId = 0;
+  const target = Number(targetId);
+  if (!draggedId || !target || draggedId === target) return;
+  const rows = state.adminMenu.filter((item) => item.category === category).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'cs'));
+  const ids = moveBefore(rows.map((item) => item.id), draggedId, target);
+  state.adminMenu = state.adminMenu.map((item) => ids.includes(item.id) ? { ...item, sortOrder: (ids.indexOf(item.id) + 1) * 10 } : item);
+  render();
+  try {
+    await api('/api/admin/menu-items/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ category, ids })
+    });
+    await loadMenu();
+    await loadAdmin();
+    render();
   } catch (e) {
     setMessage(e.message || String(e));
   }
@@ -613,24 +740,22 @@ function cashierView() {
   const categories = menuCategories();
   const total = cartTotal();
   const change = changeDue();
+  const surcharge = surchargeDue();
+  const charged = chargedTotal();
   const isPcCashier = isPcUser();
-  const quickCash = quickCashAmounts(total);
   const visibleCategories = isPcCashier ? categories.filter((category) => category === state.pcCategory) : categories;
   const productButtonHtml = (item) => `
     <button type="button" class="item-btn" onclick="pressItem(${item.id})">
       <strong>${escapeHtml(itemLabel(item))}</strong>
-      ${itemMeta(item) ? `<small>${escapeHtml(itemMeta(item))}</small>` : ''}
       <span>${money(item.priceCzk)}</span>
       ${state.cart.get(item.id)?.qty ? `<b class="item-count">${state.cart.get(item.id).qty}</b>` : ''}
     </button>
   `;
   const groupButtonHtml = (group) => {
     const qty = groupCartQty(group);
-    const variants = groupVariantLabel(group);
     return `
       <button type="button" class="item-btn variant-group-btn" onclick='pressProductGroup(${JSON.stringify(group.category)}, ${JSON.stringify(group.name)}, ${JSON.stringify(group.pluCode)})'>
         <strong>${escapeHtml(group.name)}</strong>
-        ${variants ? `<small>${escapeHtml(variants)}${group.pluCode && variants !== `#${group.pluCode}` ? ` • #${escapeHtml(group.pluCode)}` : ''}</small>` : ''}
         <span>${groupPriceLabel(group)}</span>
         ${qty ? `<b class="item-count">${qty}</b>` : ''}
       </button>
@@ -683,7 +808,7 @@ function cashierView() {
                 <h2>Účet</h2>
                 <span>${cartItems().length} položek</span>
               </div>
-              <button class="ghost-btn" onclick="state.cart.clear(); render()">Smazat</button>
+              <button class="ghost-btn" onclick="state.cart.clear(); state.cashReceived=''; state.chargeTotal=''; render()">Smazat</button>
             </div>
             <div class="cart-list">
               ${cartItems().length === 0 ? '<p class="empty">Žádné položky.</p>' : ''}
@@ -713,17 +838,18 @@ function cashierView() {
               <button class="${state.paymentMethod === 'cash' ? 'active' : ''}" onclick="state.paymentMethod='cash'; render()">Hotově</button>
               <button class="${state.paymentMethod === 'card' ? 'active' : ''}" onclick="state.paymentMethod='card'; render()">Kartou</button>
             </div>
-            <label class="field cash-field ${state.paymentMethod === 'card' ? 'inactive' : ''}">
-              <span>${state.paymentMethod === 'cash' ? 'Přijato od zákazníka' : 'Přijato'}</span>
-              <input inputmode="decimal" autocomplete="off" value="${escapeHtml(state.cashReceived)}" oninput="updateCashReceived(this.value)" placeholder="např. 200" ${state.paymentMethod === 'card' ? 'disabled' : ''} />
+            <label class="field charge-field">
+              <span>Účtovat celkem</span>
+              <input inputmode="decimal" autocomplete="off" value="${escapeHtml(state.chargeTotal)}" oninput="updateChargeTotal(this.value)" placeholder="${money(total)}" />
             </label>
-            ${state.paymentMethod === 'cash' ? `
-              <div class="quick-cash">
-                ${quickCash.map((amount, index) => `
-                  <button type="button" onclick="setCashReceived(${amount})">${index === 0 ? 'Přesně' : money(amount)}</button>
-                `).join('')}
-              </div>
-            ` : '<div class="quick-cash muted-cash"></div>'}
+            <div class="surcharge-box">
+              <span>Dýško</span>
+              <strong id="surchargeValue">${surcharge === null ? '-' : money(Math.max(0, surcharge))}</strong>
+            </div>
+            <label class="field cash-field ${state.paymentMethod === 'card' ? 'inactive' : ''}">
+              <span>${state.paymentMethod === 'cash' ? 'Hotově přijal' : 'Hotově přijal'}</span>
+              <input inputmode="decimal" autocomplete="off" value="${escapeHtml(state.cashReceived)}" oninput="updateCashReceived(this.value)" placeholder="např. 500" ${state.paymentMethod === 'card' ? 'disabled' : ''} />
+            </label>
             <div id="changeBox" class="change-box ${change !== null && change < 0 ? 'bad' : ''} ${state.paymentMethod === 'card' ? 'card-mode' : ''}">
               <span>${state.paymentMethod === 'cash' ? 'Vrátit' : 'Platba'}</span>
               <strong id="changeValue">${state.paymentMethod === 'cash' ? (change === null ? '-' : money(Math.max(0, change))) : 'Karta'}</strong>
@@ -1036,8 +1162,7 @@ function adminClosuresView() {
 
 function adminView() {
   const s = state.adminSummary || {};
-  const categories = [...new Set(state.adminMenu.map((item) => item.category).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, 'cs'));
+  const categories = orderCategories([...new Set(state.adminMenu.map((item) => item.category).filter(Boolean))], state.adminCategoryOrder);
   const scopes = state.adminScopes.length ? state.adminScopes : [
     { id: 'zmrzlina', label: 'Zmrzlina 1111' },
     { id: 'bouda', label: 'Bouda 3333' },
@@ -1137,13 +1262,15 @@ function adminView() {
           const items = state.adminMenu.filter((item) => item.category === category);
           return `
             <details class="menu-category-edit">
-              <summary>
+              <summary draggable="true" ondragstart='dragCategory(event, ${JSON.stringify(category)})' ondragover="event.preventDefault()" ondrop='dropCategory(event, ${JSON.stringify(category)})'>
+                <b class="drag-handle">☰</b>
                 <strong>${escapeHtml(category)}</strong>
                 <span>${items.length} položek</span>
               </summary>
               <div class="menu-category-items">
-                ${items.map((item) => `
-                  <div class="menu-edit-row">
+                ${items.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'cs')).map((item) => `
+                  <div class="menu-edit-row" draggable="true" ondragstart="dragMenuItem(event, ${item.id})" ondragover="event.preventDefault()" ondrop='dropMenuItem(event, ${JSON.stringify(category)}, ${item.id})'>
+                    <b class="drag-handle">☰</b>
                     <div class="menu-edit-main">
                       <input data-menu-name="${item.id}" value="${escapeHtml(item.name)}" aria-label="Název" />
                       <small>${escapeHtml((item.menuScopeLabels || []).join(', '))}</small>
@@ -1239,13 +1366,19 @@ window.addVariantDraftToCart = addVariantDraftToCart;
 window.selectPcCategory = selectPcCategory;
 window.toggleRecentSales = toggleRecentSales;
 window.setCashReceived = setCashReceived;
+window.setChargeTotal = setChargeTotal;
 window.updateCashReceived = updateCashReceived;
+window.updateChargeTotal = updateChargeTotal;
 window.setQty = setQty;
 window.pay = pay;
 window.voidSale = voidSale;
 window.loadRecentSales = loadRecentSales;
 window.loadAdmin = loadAdmin;
 window.saveMenuItem = saveMenuItem;
+window.dragCategory = dragCategory;
+window.dropCategory = dropCategory;
+window.dragMenuItem = dragMenuItem;
+window.dropMenuItem = dropMenuItem;
 window.addMenuItem = addMenuItem;
 window.setAdminTab = setAdminTab;
 window.setClosureMonth = setClosureMonth;

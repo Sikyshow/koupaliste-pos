@@ -502,6 +502,29 @@ async function setAppState(key, value) {
   );
 }
 
+async function categoryOrder() {
+  try {
+    const raw = await getAppState('menu_category_order', '[]');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((item) => String(item || '').trim()).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function orderRowsByCategory(rows, order = []) {
+  const rank = new Map((order || []).map((category, index) => [String(category), index]));
+  return [...rows].sort((a, b) => {
+    const ac = String(a.category || '');
+    const bc = String(b.category || '');
+    const ai = rank.has(ac) ? rank.get(ac) : Number.MAX_SAFE_INTEGER;
+    const bi = rank.has(bc) ? rank.get(bc) : Number.MAX_SAFE_INTEGER;
+    if (ai !== bi) return ai - bi;
+    if (ac !== bc) return ac.localeCompare(bc, 'cs');
+    return Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.name || '').localeCompare(String(b.name || ''), 'cs');
+  });
+}
+
 async function currentShiftStartedAt() {
   return getAppState('shift_started_at', `${localDateKey()} 00:00:00`);
 }
@@ -623,16 +646,19 @@ app.post('/api/login', async (req, res, next) => {
 app.get('/api/menu', requireUser, async (req, res, next) => {
   try {
     const scope = menuScopeForUser(req.user);
+    const order = await categoryOrder();
     const rows = await all(
       `SELECT id, name, category, variant_name, plu_code, menu_scope, price_czk, active, sort_order
        FROM menu_items
        WHERE active=1
-       ORDER BY sort_order, category, name`
+       ORDER BY category, sort_order, name`
     );
+    const scopedRows = rows.filter((row) => menuScopeIds(row.menu_scope).includes(scope));
     res.json({
       scope,
       scopes: MENU_SCOPES,
-      items: rows.filter((row) => menuScopeIds(row.menu_scope).includes(scope)).map(mapMenuItem)
+      categoryOrder: order,
+      items: orderRowsByCategory(scopedRows, order).map(mapMenuItem)
     });
   } catch (e) {
     next(e);
@@ -670,7 +696,25 @@ app.post('/api/sales', requireUser, async (req, res, next) => {
     }
 
     if (cart.length === 0) return res.status(400).json({ error: 'Košík je prázdný.' });
-    const total = czk(cart.reduce((sum, item) => sum + item.lineTotalCzk, 0));
+    const itemTotal = czk(cart.reduce((sum, item) => sum + item.lineTotalCzk, 0));
+    const requestedTotal = req.body?.chargedTotalCzk === '' || req.body?.chargedTotalCzk === null
+      ? itemTotal
+      : Number(req.body?.chargedTotalCzk);
+    if (!Number.isFinite(requestedTotal) || requestedTotal < itemTotal) {
+      return res.status(400).json({ error: 'Účtovaná cena musí být aspoň ve výši účtu.' });
+    }
+    const total = czk(requestedTotal);
+    const surcharge = czk(total - itemTotal);
+    if (surcharge > 0) {
+      cart.push({
+        menuItemId: null,
+        itemName: 'Dýško',
+        category: 'Dýško',
+        qty: 1,
+        unitPriceCzk: surcharge,
+        lineTotalCzk: surcharge
+      });
+    }
     if (paymentMethod === 'cash' && Number.isFinite(cashReceived) && cashReceived < total) {
       return res.status(400).json({ error: 'Přijato je méně než celková částka.' });
     }
@@ -763,8 +807,35 @@ app.get('/api/admin/summary', requireUser, requireAdmin, async (req, res, next) 
 
 app.get('/api/admin/menu-items', requireUser, requireAdmin, async (_req, res, next) => {
   try {
-    const rows = await all(`SELECT * FROM menu_items ORDER BY active DESC, sort_order, category, name`);
-    res.json({ scopes: MENU_SCOPES, items: rows.map(mapMenuItem) });
+    const order = await categoryOrder();
+    const rows = await all(`SELECT * FROM menu_items ORDER BY category, sort_order, name`);
+    res.json({ scopes: MENU_SCOPES, categoryOrder: order, items: orderRowsByCategory(rows, order).map(mapMenuItem) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/admin/menu-categories/order', requireUser, requireAdmin, async (req, res, next) => {
+  try {
+    const categories = Array.isArray(req.body?.categories)
+      ? req.body.categories.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+    await setAppState('menu_category_order', JSON.stringify([...new Set(categories)]));
+    res.json({ ok: true, categoryOrder: await categoryOrder() });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/admin/menu-items/reorder', requireUser, requireAdmin, async (req, res, next) => {
+  try {
+    const category = String(req.body?.category || '').trim();
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map((id) => Number(id)).filter(Boolean) : [];
+    if (!category || ids.length === 0) return res.status(400).json({ error: 'Chybí pořadí položek.' });
+    for (let i = 0; i < ids.length; i += 1) {
+      await run(`UPDATE menu_items SET sort_order=?, updated_at=datetime('now') WHERE id=? AND category=?`, [(i + 1) * 10, ids[i], category]);
+    }
+    res.json({ ok: true });
   } catch (e) {
     next(e);
   }
