@@ -1,6 +1,7 @@
 const state = {
   user: null,
   pin: '',
+  theme: localStorage.getItem('koupaliste-theme') === 'dark' ? 'dark' : 'light',
   menu: [],
   categoryOrder: [],
   cart: new Map(),
@@ -26,6 +27,7 @@ const state = {
 };
 
 const app = document.getElementById('app');
+document.documentElement.dataset.theme = state.theme;
 
 document.addEventListener(
   'gesturestart',
@@ -37,6 +39,18 @@ document.addEventListener(
 
 function money(value) {
   return `${Number(value || 0).toFixed(0)} Kč`;
+}
+
+function toggleTheme() {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = state.theme;
+  localStorage.setItem('koupaliste-theme', state.theme);
+  render();
+}
+
+function themeButton() {
+  const dark = state.theme === 'dark';
+  return `<button class="icon-btn theme-toggle" onclick="toggleTheme()" title="${dark ? 'Zapnout světlý režim' : 'Zapnout tmavý režim'}">${dark ? '☀ Světlý' : '☾ Tmavý'}</button>`;
 }
 
 function czDate(value) {
@@ -770,6 +784,7 @@ function cashierView() {
         </div>
         <div class="topbar-actions">
           ${isPcCashier ? `<button class="icon-btn history-toggle ${state.showRecentSales ? 'active' : ''}" onclick="toggleRecentSales()">Prodeje</button>` : ''}
+          ${themeButton()}
           <button class="icon-btn" onclick="logout()">Odhlásit</button>
         </div>
       </header>
@@ -1321,6 +1336,7 @@ function adminView() {
             <input type="date" value="${state.adminDate}" onchange="state.adminDate=this.value; loadAdmin().then(render)" />
           </label>
           <button class="pay-btn compact" onclick="closeDay()">Uzavřít den</button>
+          ${themeButton()}
           <button class="icon-btn" onclick="logout()">Odhlásit</button>
         </div>
         <section class="kpi-grid admin-kpi-row">
@@ -1385,6 +1401,7 @@ window.setClosureMonth = setClosureMonth;
 window.setMenuAddMode = setMenuAddMode;
 window.addVariantPriceRow = addVariantPriceRow;
 window.removeVariantPriceRow = removeVariantPriceRow;
+window.toggleTheme = toggleTheme;
 window.toggleNewCategoryField = toggleNewCategoryField;
 window.closeDay = closeDay;
 window.openClosure = openClosure;
