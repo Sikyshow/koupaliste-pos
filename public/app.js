@@ -708,6 +708,12 @@ async function openClosure(id) {
     const data = await api(`/api/admin/closures/${encodeURIComponent(id)}`);
     state.selectedClosure = data.closure || null;
     render();
+    requestAnimationFrame(() => {
+      document.getElementById('closure-detail')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    });
   } catch (e) {
     setMessage(e.message || String(e));
   }
@@ -1075,7 +1081,7 @@ function adminClosuresView() {
       <div class="closure-list">
         ${closures.length === 0 ? '<p class="empty">Zatím nejsou uložené žádné uzávěrky.</p>' : ''}
         ${monthClosures.map((closure) => `
-          <article class="closure-row">
+          <article class="closure-row ${Number(detail?.id || 0) === Number(closure.id) ? 'selected' : ''}">
             <div>
               <strong>${escapeHtml(czDate(closure.businessDate))} • ${money(closure.totalCzk)}</strong>
               <span>${escapeHtml(closure.closedAt)} • ${escapeHtml(closure.closedByName)} • ${closure.salesCount} prodejů</span>
@@ -1086,7 +1092,7 @@ function adminClosuresView() {
               <span>Storna ${money(closure.voidedCzk)} (${closure.voidedCount}x)</span>
             </div>
             <div class="closure-actions">
-              <button class="ghost-btn" onclick="openClosure(${closure.id})">Detail</button>
+              <button class="ghost-btn" onclick="openClosure(${closure.id})">${Number(detail?.id || 0) === Number(closure.id) ? 'Zobrazeno' : 'Detail'}</button>
               <button class="danger-btn compact-danger" onclick="deleteClosure(${closure.id})">Smazat</button>
             </div>
           </article>
@@ -1094,7 +1100,7 @@ function adminClosuresView() {
         ${closures.length && monthClosures.length === 0 ? '<p class="empty">V tomto měsíci nejsou žádné uzávěrky.</p>' : ''}
       </div>
       ${detail ? `
-        <div class="closure-detail">
+        <div class="closure-detail" id="closure-detail">
           <div class="section-title">
             <h3>Detail uzávěrky ${escapeHtml(czDate(detail.businessDate))} • ${money(detail.totalCzk)}</h3>
             <button class="ghost-btn" onclick="closeClosureDetail()">Zavřít</button>

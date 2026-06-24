@@ -1492,6 +1492,13 @@ select:focus {
   background: #fbfefd;
 }
 
+.closure-row.selected {
+  border-color: #3b82f6;
+  box-shadow:
+    0 0 0 2px rgba(59, 130, 246, 0.12),
+    0 10px 22px rgba(37, 99, 235, 0.10);
+}
+
 .closure-row span {
   display: block;
   margin-top: 3px;
@@ -1521,6 +1528,7 @@ select:focus {
   display: grid;
   gap: 12px;
   margin-top: 14px;
+  scroll-margin-top: 16px;
   padding: 12px;
   border: 1px solid #cfe2dd;
   border-radius: 8px;
@@ -2033,6 +2041,107 @@ select:focus {
     background: linear-gradient(180deg, #19b37d, #0f7a57);
   }
 
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock {
+    gap: 5px;
+    grid-auto-flow: dense;
+    padding: 6px 6px max(6px, env(safe-area-inset-bottom));
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .total-box {
+    order: 2;
+    grid-column: 2;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .change-box {
+    order: 1;
+    grid-column: 2;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .charge-field,
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .surcharge-box {
+    order: 2;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .cash-field {
+    order: 2;
+    grid-column: 1;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .surcharge-box {
+    order: 1;
+    grid-column: 1;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .charge-field {
+    order: 4;
+    grid-column: 1;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .pay-tabs {
+    order: 3;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .pay-btn {
+    order: 4;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .total-box,
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .change-box,
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .surcharge-box {
+    min-height: 44px;
+    padding: 6px 8px;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .total-box strong,
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .change-box strong,
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .surcharge-box strong {
+    font-size: 18px;
+    white-space: nowrap;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .surcharge-box {
+    min-height: 40px;
+    padding: 5px 8px;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .total-box {
+    min-height: 46px;
+    padding: 7px 9px;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .surcharge-box span {
+    font-size: 11px;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .surcharge-box strong {
+    font-size: 16px;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .total-box strong {
+    font-size: 21px;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .field {
+    gap: 3px;
+    font-size: 12px;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .field input {
+    min-height: 40px;
+    padding: 6px 8px;
+    font-size: 16px;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .pay-tabs button {
+    min-height: 36px;
+  }
+
+  .cashier-shell:not(.pc-cashier-shell) .pay-dock .pay-btn {
+    min-height: 48px;
+    font-size: 18px;
+    font-weight: 950;
+  }
+
   .quick-cash {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 5px;
@@ -2348,6 +2457,64 @@ select:focus {
   color: #dbeafe;
 }
 
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .menu-section,
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .cart-zone {
+  border-color: #334155;
+  background: #172033;
+}
+
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .menu-section h2 {
+  background: #1e3a5f;
+  color: #dbeafe;
+}
+
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .item-btn {
+  border-color: #394d6b;
+  background: linear-gradient(180deg, #1c2941, #151f33);
+  color: #eef7f5;
+  box-shadow: 0 8px 18px rgba(3, 7, 18, 0.26);
+}
+
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .item-btn span {
+  background: #1e3a5f;
+  color: #bfdbfe;
+}
+
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .item-count {
+  border-color: #172033;
+}
+
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .pay-dock {
+  border-color: #334155;
+  background: linear-gradient(180deg, #1f2937, #111827);
+  box-shadow: 0 -18px 42px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .pay-dock .field {
+  color: #dbe6f5;
+}
+
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .pay-dock .pay-btn {
+  border: 2px solid #85b9ff;
+  background: linear-gradient(180deg, #3489f2, #185ac2);
+  color: #ffffff;
+  box-shadow: 0 5px 0 #0d438f;
+}
+
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .qty {
+  border-color: #425979;
+  background: #0f172a;
+}
+
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .qty button {
+  background: #22314c;
+  color: #dbeafe;
+}
+
+:root[data-theme="dark"] .cashier-shell:not(.pc-cashier-shell) .qty b {
+  color: #eef7f5;
+}
+
 :root[data-theme="dark"] .pc-cashier-shell .topbar,
 :root[data-theme="dark"] .pc-cashier-shell .cart-zone {
   border-color: var(--line);
@@ -2542,6 +2709,14 @@ select:focus {
 :root[data-theme="dark"] .closure-month-tab.active {
   border-color: #60a5fa;
   background: #24395d;
+}
+
+:root[data-theme="dark"] .closure-row.selected {
+  border-color: #60a5fa;
+  background: #213658;
+  box-shadow:
+    0 0 0 2px rgba(96, 165, 250, 0.14),
+    0 10px 22px rgba(3, 7, 18, 0.28);
 }
 
 :root[data-theme="dark"] .closure-month-tab strong,
