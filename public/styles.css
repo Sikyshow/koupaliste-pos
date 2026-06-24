@@ -796,6 +796,7 @@ select:focus {
 
 .pc-cashier-shell .cart-zone {
   position: sticky;
+  z-index: 40;
   top: 92px;
   max-height: calc(100vh - 112px);
   overflow: auto;
@@ -817,17 +818,20 @@ select:focus {
 
 .pc-cashier-shell .pay-dock {
   position: fixed;
-  z-index: 30;
+  z-index: 1000;
+  isolation: isolate;
+  overflow: hidden;
+  backface-visibility: hidden;
   left: 50%;
   right: auto;
   bottom: 0;
   width: min(1080px, calc(100vw - 28px));
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateZ(0);
   padding: 10px 10px max(10px, env(safe-area-inset-bottom));
   border: 1px solid #354845;
   border-bottom: 0;
   border-radius: 8px 8px 0 0;
-  background: linear-gradient(180deg, #263936, #172724);
+  background-color: #172724;
   box-shadow:
     0 -16px 34px rgba(8, 25, 22, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -2573,7 +2577,8 @@ select:focus {
 
 :root[data-theme="dark"] .pc-cashier-shell .pay-dock {
   border-color: #334155;
-  background: linear-gradient(180deg, #1f2937, #111827);
+  background-color: #111827;
+  background-image: linear-gradient(180deg, #1f2937, #111827);
 }
 
 :root[data-theme="dark"] .total-box {
