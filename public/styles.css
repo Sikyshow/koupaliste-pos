@@ -614,8 +614,8 @@ select:focus {
 
 .pc-cashier-shell {
   width: min(1500px, 100%);
-  padding-bottom: 190px;
-  scroll-padding-bottom: 190px;
+  padding-bottom: 280px;
+  scroll-padding-bottom: 280px;
 }
 
 .admin-shell {
