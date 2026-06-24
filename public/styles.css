@@ -2518,3 +2518,69 @@ select:focus {
   background: #334155;
   color: #94a3b8;
 }
+
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .closures-panel,
+:root[data-theme="dark"] .void-panel,
+:root[data-theme="dark"] .closure-detail,
+:root[data-theme="dark"] .menu-category-edit {
+  border-color: #334155;
+  background: #172033;
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .closure-month-tab,
+:root[data-theme="dark"] .closure-month-summary div,
+:root[data-theme="dark"] .closure-row,
+:root[data-theme="dark"] .closure-kpis div,
+:root[data-theme="dark"] .report-line {
+  border-color: #334155;
+  background: #1b2740;
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .closure-month-tab.active {
+  border-color: #60a5fa;
+  background: #24395d;
+}
+
+:root[data-theme="dark"] .closure-month-tab strong,
+:root[data-theme="dark"] .closure-month-summary strong,
+:root[data-theme="dark"] .closure-row strong,
+:root[data-theme="dark"] .closure-kpis strong,
+:root[data-theme="dark"] .report-line strong {
+  color: #eef7f5;
+}
+
+:root[data-theme="dark"] .closure-month-tab span,
+:root[data-theme="dark"] .closure-month-summary span,
+:root[data-theme="dark"] .closure-row span,
+:root[data-theme="dark"] .report-line span,
+:root[data-theme="dark"] .menu-edit-main small,
+:root[data-theme="dark"] .menu-edit-row label,
+:root[data-theme="dark"] .menu-category-edit summary span {
+  color: #aeb8c7;
+}
+
+:root[data-theme="dark"] .menu-category-edit summary {
+  border-bottom-color: #334155;
+  background: #202c44;
+  color: #eef7f5;
+}
+
+:root[data-theme="dark"] .menu-category-edit summary::after,
+:root[data-theme="dark"] .drag-handle {
+  background: #111827;
+  color: #bfdbfe;
+  box-shadow: inset 0 0 0 1px #334155;
+}
+
+:root[data-theme="dark"] .menu-category-items {
+  background: #121b2d;
+}
+
+:root[data-theme="dark"] .menu-edit-row:hover,
+:root[data-theme="dark"] .menu-category-edit summary:hover {
+  border-color: #60a5fa;
+  box-shadow: 0 8px 20px rgba(3, 7, 18, 0.24);
+}
