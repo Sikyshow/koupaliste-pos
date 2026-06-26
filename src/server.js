@@ -371,7 +371,9 @@ async function initDb() {
     }
   }
 
-  const pcSeed = [
+  const pcCount = await get(`SELECT COUNT(*) AS c FROM menu_items WHERE menu_scope LIKE '%bouda%'`);
+  if (Number(pcCount?.c || 0) === 0) {
+    const pcSeed = [
     ['Pokladna', '1.Pivo', '82701', 'Malé', 0],
     ['Pokladna', '1.Pivo', '82701', 'Velké', 0],
     ['Pokladna', '2.Birell', '82705', 'Malý', 0],
@@ -431,23 +433,17 @@ async function initDb() {
     ['Nápoje', 'Kubik', '115551', '', 0],
     ['Nápoje', 'Rajec', '115683', '', 0],
     ['Nápoje', 'Vinea', '115687', '', 0]
-  ];
-  for (let i = 0; i < pcSeed.length; i += 1) {
-    const [category, name, pluCode, variantName, priceCzk] = pcSeed[i];
-    const exists = await get(
-      `SELECT id FROM menu_items
-       WHERE menu_scope LIKE '%bouda%' AND category=? AND name=? AND plu_code=? AND variant_name=?
-       LIMIT 1`,
-      [category, name, pluCode, variantName]
-    );
-    if (exists) continue;
-    const resolvedPrice = pcCatalogPrice(name, variantName);
-    await run(
-      `INSERT INTO menu_items(
-        name, category, variant_name, plu_code, menu_scope, price_czk, active, sort_order
-      ) VALUES (?, ?, ?, ?, 'bouda', ?, 1, ?)`,
-      [name, category, variantName, pluCode, czk(resolvedPrice ?? priceCzk), 1000 + i]
-    );
+    ];
+    for (let i = 0; i < pcSeed.length; i += 1) {
+      const [category, name, pluCode, variantName, priceCzk] = pcSeed[i];
+      const resolvedPrice = pcCatalogPrice(name, variantName);
+      await run(
+        `INSERT INTO menu_items(
+          name, category, variant_name, plu_code, menu_scope, price_czk, active, sort_order
+        ) VALUES (?, ?, ?, ?, 'bouda', ?, 1, ?)`,
+        [name, category, variantName, pluCode, czk(resolvedPrice ?? priceCzk), 1000 + i]
+      );
+    }
   }
 
 }
