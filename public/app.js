@@ -494,7 +494,7 @@ async function voidSale(id) {
   }
 }
 
-async function saveMenuItem(id) {
+function menuItemPayload(id) {
   const name = document.querySelector(`[data-menu-name="${id}"]`)?.value || '';
   const category = document.querySelector(`[data-menu-category="${id}"]`)?.value || '';
   const variant = document.querySelector(`[data-menu-variant="${id}"]`)?.value || '';
@@ -502,13 +502,32 @@ async function saveMenuItem(id) {
   const menuScopes = Array.from(document.querySelectorAll(`[data-menu-scope="${id}"]:checked`)).map((input) => input.value);
   const priceCzk = document.querySelector(`[data-menu-price="${id}"]`)?.value || 0;
   const active = document.querySelector(`[data-menu-active="${id}"]`)?.checked || false;
+  return { name, category, variant, pluCode, menuScopes, priceCzk, active };
+}
+
+async function saveMenuItem(id) {
   try {
     await api(`/api/admin/menu-items/${encodeURIComponent(id)}`, {
       method: 'PUT',
-      body: JSON.stringify({ name, category, variant, pluCode, menuScopes, priceCzk, active })
+      body: JSON.stringify(menuItemPayload(id))
     });
     await loadAdmin();
     setMessage('Položka uložena.');
+  } catch (e) {
+    setMessage(e.message || String(e));
+  }
+}
+
+async function saveMenuCategory(ids, category) {
+  const rows = Array.isArray(ids) ? ids.map(Number).filter(Boolean) : [];
+  if (rows.length === 0) return setMessage('V kategorii nejsou žádné položky.');
+  try {
+    await Promise.all(rows.map((id) => api(`/api/admin/menu-items/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(menuItemPayload(id))
+    })));
+    await loadAdmin();
+    setMessage(`Kategorie ${category} uložena (${rows.length} položek).`);
   } catch (e) {
     setMessage(e.message || String(e));
   }
@@ -1295,6 +1314,7 @@ function adminView() {
       <div class="menu-edit-list">
         ${categories.map((category) => {
           const items = state.adminMenu.filter((item) => item.category === category);
+          const itemIds = items.map((item) => item.id);
           return `
             <details class="menu-category-edit">
               <summary draggable="true" ondragstart='dragCategory(event, ${JSON.stringify(category)})' ondragover="event.preventDefault()" ondrop='dropCategory(event, ${JSON.stringify(category)})'>
@@ -1302,6 +1322,9 @@ function adminView() {
                 <strong>${escapeHtml(category)}</strong>
                 <span>${items.length} položek</span>
               </summary>
+              <div class="category-bulk-actions">
+                <button type="button" class="save-category-btn" onclick='saveMenuCategory(${JSON.stringify(itemIds)}, ${JSON.stringify(category)})'>Uložit celou kategorii</button>
+              </div>
               <div class="menu-category-items">
                 ${items.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'cs')).map((item) => `
                   <div class="menu-edit-row" draggable="true" ondragstart="dragMenuItem(event, ${item.id})" ondragover="event.preventDefault()" ondrop='dropMenuItem(event, ${JSON.stringify(category)}, ${item.id})'>
@@ -1411,6 +1434,7 @@ window.voidSale = voidSale;
 window.loadRecentSales = loadRecentSales;
 window.loadAdmin = loadAdmin;
 window.saveMenuItem = saveMenuItem;
+window.saveMenuCategory = saveMenuCategory;
 window.cleanupDefaultBoudaItems = cleanupDefaultBoudaItems;
 window.dragCategory = dragCategory;
 window.dropCategory = dropCategory;

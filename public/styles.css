@@ -1771,6 +1771,22 @@ select:focus {
   font-weight: 900;
 }
 
+.category-bulk-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 8px 2px;
+}
+
+.save-category-btn {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(37, 99, 235, 0.32);
+  border-radius: 8px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 950;
+}
+
 .menu-category-items {
   display: grid;
   gap: 8px;
