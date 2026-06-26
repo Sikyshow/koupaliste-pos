@@ -514,6 +514,17 @@ async function saveMenuItem(id) {
   }
 }
 
+async function cleanupDefaultBoudaItems() {
+  if (!confirm('Skrýt staré výchozí položky pro Boudu? Tvoje nové položky a historie prodejů zůstanou.')) return;
+  try {
+    const data = await api('/api/admin/menu-items/cleanup-default-bouda', { method: 'POST' });
+    await loadAdmin();
+    setMessage(`Skryto ${Number(data.hidden || 0)} starých položek.`);
+  } catch (e) {
+    setMessage(e.message || String(e));
+  }
+}
+
 function dragCategory(event, category) {
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData('text/plain', String(category));
@@ -1233,7 +1244,10 @@ function adminView() {
           <h2>Správa položek</h2>
           <p class="muted">Přidání, ceny, kategorie a pokladny.</p>
         </div>
-        <strong class="admin-pill">${state.adminMenu.length} položek</strong>
+        <div class="section-actions">
+          <button type="button" class="ghost-btn danger-ghost" onclick="cleanupDefaultBoudaItems()">Skrýt staré Bouda položky</button>
+          <strong class="admin-pill">${state.adminMenu.length} položek</strong>
+        </div>
       </div>
       <form class="add-form quick-add-form" onsubmit="addMenuItem(event)">
         <label class="field">
@@ -1397,6 +1411,7 @@ window.voidSale = voidSale;
 window.loadRecentSales = loadRecentSales;
 window.loadAdmin = loadAdmin;
 window.saveMenuItem = saveMenuItem;
+window.cleanupDefaultBoudaItems = cleanupDefaultBoudaItems;
 window.dragCategory = dragCategory;
 window.dropCategory = dropCategory;
 window.dragMenuItem = dragMenuItem;

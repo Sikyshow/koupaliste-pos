@@ -214,6 +214,68 @@ function pcCatalogPrice(name, variantName = '') {
   return Object.prototype.hasOwnProperty.call(prices, String(name || '')) ? prices[String(name || '')] : null;
 }
 
+const DEFAULT_BOUDA_CLEANUP_ROWS = [
+  ['Pokladna', '1.Pivo', '82701', 'Malé'],
+  ['Pokladna', '1.Pivo', '82701', 'Velké'],
+  ['Pokladna', '2.Birell', '82705', 'Malý'],
+  ['Pokladna', '2.Birell', '82705', 'Velký'],
+  ['Pokladna', '3.Malinovka', '83217', 'Malá'],
+  ['Pokladna', '3.Malinovka', '83217', 'Velká'],
+  ['Pokladna', 'Doplatek', '82707', '5'],
+  ['Pokladna', 'Doplatek', '82707', '10'],
+  ['Pokladna', 'Doplatek', '82707', '20'],
+  ['Pokladna', 'Doplatek', '82707', '50'],
+  ['Pokladna', 'Doplatek', '82707', '100'],
+  ['Pokladna', 'Doplatek', '82707', '1000'],
+  ['Doplňkový', 'Balzám', '82947', ''],
+  ['Doplňkový', 'Bebe', '82931', 'Kus'],
+  ['Doplňkový', 'Chipsy', '82925', 'Kus'],
+  ['Doplňkový', 'Cukrová vata', '87455', ''],
+  ['Doplňkový', 'Křupky', '87453', 'Křupky'],
+  ['Doplňkový', 'Pendrek', '82935', ''],
+  ['Doplňkový', 'Pendrek', '82935', 'Kus'],
+  ['Doplňkový', 'Slazené mléko', '115557', ''],
+  ['Doplňkový', 'Sprej', '87459', ''],
+  ['Doplňkový', 'Tatranka', '115541', ''],
+  ['Doplňkový', 'Tyčinky', '82933', 'Kus'],
+  ['Zmrzlina', '1. Zmrzlina', '82953', 'Kopeček'],
+  ['Zmrzlina', '2. Italská zmrzlina', '87759', ''],
+  ['Zmrzlina', 'Hot dog', '83711', 'Kus'],
+  ['Zmrzlina', 'Klobáska', '86909', 'Kus'],
+  ['Zmrzlina', 'Kukuřice', '86911', 'Kus'],
+  ['Zmrzlina', 'Miska', '87967', ''],
+  ['Zmrzlina', 'Popcorn', '83709', 'Kus'],
+  ['Hračky', 'Brýle', '115547', 'Klasik'],
+  ['Hračky', 'Brýle', '115547', 'Šnorchl'],
+  ['Hračky', 'Kruhy', '82927', 'Meloun velký'],
+  ['Hračky', 'Kruhy', '82927', '[60]'],
+  ['Hračky', 'Kruhy', '82927', '[80]'],
+  ['Hračky', 'Lehátko', '117019', ''],
+  ['Hračky', 'Míček', '82951', 'Malý'],
+  ['Hračky', 'Míček', '82951', 'Nafukovací'],
+  ['Hračky', 'Míček', '82951', 'Střední barevný'],
+  ['Hračky', 'Míček', '82951', 'Velký pěnový'],
+  ['Hračky', 'Nafukovací tyčky', '115543', ''],
+  ['Hračky', 'Pistolky', '82709', 'Dlouhá pěnová'],
+  ['Hračky', 'Pistolky', '82709', 'Kus'],
+  ['Hračky', 'Pistolky', '82709', 'Zvířátka'],
+  ['Hračky', 'Plavidlo', '117021', ''],
+  ['Hračky', 'Přívěšek', '115783', ''],
+  ['Hračky', 'Rukávky', '115781', ''],
+  ['Hračky', 'Vesta', '87457', 'L'],
+  ['Hračky', 'Vesta', '87457', 'M'],
+  ['Hračky', 'Vesta', '87457', 'S'],
+  ['Nápoje', 'Cider', '115685', ''],
+  ['Nápoje', 'Cola', '115691', ''],
+  ['Nápoje', 'Energy', '115693', ''],
+  ['Nápoje', 'Jupik', '115555', 'Malý'],
+  ['Nápoje', 'Jupik', '115555', 'Velký'],
+  ['Nápoje', 'Kofola', '115689', ''],
+  ['Nápoje', 'Kubik', '115551', ''],
+  ['Nápoje', 'Rajec', '115683', ''],
+  ['Nápoje', 'Vinea', '115687', '']
+];
+
 function mapSale(row) {
   return {
     id: Number(row.id),
@@ -832,6 +894,28 @@ app.post('/api/admin/menu-items/reorder', requireUser, requireAdmin, async (req,
       await run(`UPDATE menu_items SET sort_order=?, updated_at=datetime('now') WHERE id=? AND category=?`, [(i + 1) * 10, ids[i], category]);
     }
     res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/admin/menu-items/cleanup-default-bouda', requireUser, requireAdmin, async (_req, res, next) => {
+  try {
+    let hidden = 0;
+    for (const [category, name, pluCode, variantName] of DEFAULT_BOUDA_CLEANUP_ROWS) {
+      const result = await run(
+        `UPDATE menu_items
+         SET active=0, menu_scope='', updated_at=datetime('now')
+         WHERE menu_scope LIKE '%bouda%'
+           AND category=?
+           AND name=?
+           AND plu_code=?
+           AND variant_name=?`,
+        [category, name, pluCode, variantName]
+      );
+      hidden += Number(result.changes || 0);
+    }
+    res.json({ ok: true, hidden });
   } catch (e) {
     next(e);
   }

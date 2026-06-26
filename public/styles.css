@@ -302,6 +302,20 @@ select:focus {
   font-weight: 900;
 }
 
+.section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.danger-ghost {
+  background: var(--red-soft);
+  color: var(--red);
+  border: 1px solid rgba(190, 18, 60, 0.22);
+}
+
 .pos-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
